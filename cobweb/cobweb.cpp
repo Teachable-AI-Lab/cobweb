@@ -1,10 +1,9 @@
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
 #include <iostream>
 #include <sstream>
 #include <iomanip>
 #include <vector>
 #include <queue>
+#include <list>
 #include <unordered_map>
 #include <functional>
 #include <random>
@@ -17,6 +16,19 @@
 #include "json.hpp"
 #include "cached_string.hpp"
 #include "BS_thread_pool.hpp"
+
+#ifdef NO_PYBIND11
+namespace pybind11 {
+    // Mock implementation of pybind11::print
+    template <typename... Args>
+    void print(Args&&... args) {
+        //(std::cout << ... << args) << std::endl;
+    }
+}
+#else
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+#endif
 
 namespace py = pybind11;
 
@@ -205,7 +217,6 @@ double logsumexp(double n1, double n2) {
 
 
 class CobwebNode {
-
     public:
         CobwebTree *tree;
         CobwebNode *parent;
@@ -280,7 +291,6 @@ class CobwebNode {
         double probability(ATTR_TYPE attr, VALUE_TYPE val);
 
 };
-
 
 class CobwebTree {
 
@@ -635,9 +645,7 @@ class CobwebTree {
         }
 
         std::unordered_map<std::string, std::unordered_map<std::string, double>> predict_probs_mixture_helper(const AV_COUNT_TYPE &instance, double ll_path, int max_nodes, bool greedy, bool missing){
-
             std::unordered_map<std::string, std::unordered_map<std::string, double>> out;
-            std::unordered_map<std::string, std::unordered_map<std::string, std::vector<double>>> weighted_pred_probs;
 
             int nodes_expanded = 0;
             double total_weight = 0;
@@ -778,6 +786,116 @@ class CobwebTree {
 
         }
 
+        std::tuple<
+            std::unordered_map< std::string, std::unordered_map<std::string, double> >
+            ,
+            std::list< std::tuple<std::string, double> > 
+        > obtain_representation_helper(const AV_COUNT_TYPE &instance, double ll_path, int max_nodes, bool greedy, bool missing){
+            
+            std::unordered_map<std::string, std::unordered_map<std::string, double>> out;
+            int nodes_expanded = 0;
+            double total_weight = 0;
+            bool first_weight = true;
+            
+            double root_ll_inst = 0;
+            if (missing){
+                root_ll_inst = this->root->log_prob_instance_missing(instance);
+            }
+            else {
+                root_ll_inst = this->root->log_prob_instance(instance);
+            }
+
+            auto queue = std::priority_queue<
+                std::tuple<double, double, CobwebNode*> >();
+            auto repr = std::list<
+                std::tuple<std::string, double>>();
+
+            queue.push(std::make_tuple(root_ll_inst, 0.0, this->root));
+            
+            while (queue.size() > 0){
+                auto node = queue.top();
+                queue.pop();
+                nodes_expanded += 1;
+
+                if (greedy){
+                    queue = std::priority_queue<
+                        std::tuple<double, double, CobwebNode*>>();
+                }
+
+                auto curr_score = std::get<0>(node);
+                auto curr_ll = std::get<1>(node);
+                auto curr = std::get<2>(node);
+                
+                // ############ ONLY DIFFERENCE FROM predict_probs_mixture_helper ############
+                repr.push_back(std::make_tuple(curr->concept_hash(), exp(curr_score)));
+                // ############ ONLY DIFFERENCE FROM predict_probs_mixture_helper ############
+
+                if (first_weight){
+                    total_weight = curr_score;
+                    first_weight = false;
+                } else {
+                    total_weight = logsumexp(total_weight, curr_score);
+                }
+
+                auto curr_log_probs = curr->predict_log_probs();
+                for (auto &[attr, val_set]: curr_log_probs) {
+                    for (auto &[val, log_p]: val_set) {
+                        if (out.count(attr) && out.at(attr).count(val)){
+                            out[attr][val] = logsumexp(out[attr][val], curr_score + log_p);
+                        } else{
+                            out[attr][val] = curr_score + log_p;
+                        }
+                    }
+                }
+
+                if (nodes_expanded >= max_nodes) break;
+
+                std::vector<double> log_children_probs = curr->log_prob_children_given_instance(instance);
+                for (size_t i = 0; i < curr->children.size(); ++i) {
+                    auto child = curr->children[i];
+                    double child_ll_inst = 0;
+                    if (missing){
+                        child_ll_inst = child->log_prob_instance_missing(instance);
+                    } else {
+                        child_ll_inst = child->log_prob_instance(instance);
+                    }
+                    auto child_ll_given_parent = log_children_probs[i];
+                    auto child_ll = child_ll_given_parent + curr_ll;
+                    queue.push(std::make_tuple(child_ll_inst + child_ll, child_ll, child));
+                }
+            }
+            
+            for (auto &[attr, val_set]: out) {
+                for (auto &[val, p]: val_set) {
+                    out[attr][val] = exp(out[attr][val] - total_weight);
+                }
+            }
+            
+            return std::make_tuple(out, repr);
+        }
+
+        /**
+         * Return nodes found in multi-node prediction as a representation of the instance.
+         *
+         * @param instance The instance to be represented.
+         * @param max_nodes The maximum number of nodes to be searched.
+         * @param greedy Whether to use a greedy search.
+         * @param missing @TODO
+         * @return What will be returned in predict_probs_mixture, as well as a list< tuple< CobwebNode node id, its **raw** collocation score without normalization> >
+         */
+        std::tuple<
+            std::unordered_map< std::string, std::unordered_map<std::string, double> >
+            ,
+            std::list< std::tuple<std::string, double> > 
+        > obtain_representation_mixture(INSTANCE_TYPE instance, int max_nodes, bool greedy, bool missing){
+            AV_COUNT_TYPE cached_instance;
+            for (auto &[attr, val_map]: instance) {
+                for (auto &[val, cnt]: val_map) {
+                    cached_instance[CachedString(attr)][CachedString(val)] = instance.at(attr).at(val);
+                }
+            }
+            return this->obtain_representation_helper(cached_instance, 0.0, max_nodes, greedy, missing);
+        }
 };
 
 inline CobwebNode::CobwebNode() {
@@ -862,7 +980,7 @@ inline double CobwebNode::entropy_attr_insert(ATTR_TYPE attr, const AV_COUNT_TYP
     COUNT_TYPE attr_count = 0;
 
     double ratio = 1.0;
-    if (this->tree->weight_attr){
+    if (this->tree->weight_attr and this->tree->root->a_count.count(attr)){
         ratio = (1.0 * this->tree->root->a_count.at(attr)) / (this->tree->root->count);
         // ratio = (1.0 * attr_count) / this->count;
     }
@@ -932,7 +1050,7 @@ inline double CobwebNode::entropy_attr_merge(ATTR_TYPE attr,
     COUNT_TYPE attr_count = 0;
 
     double ratio = 1.0;
-    if (this->tree->weight_attr){
+    if (this->tree->weight_attr and this->tree->root->a_count.count(attr)){
         ratio = (1.0 * this->tree->root->a_count.at(attr)) / (this->tree->root->count);
         // ratio = (1.0 * attr_count) / this->count;
     }
@@ -1077,7 +1195,7 @@ inline CobwebNode* CobwebNode::get_basic_level(){
 
 inline double CobwebNode::entropy_attr(ATTR_TYPE attr){
     if (attr.is_hidden()) return 0.0;
-
+    
     float alpha = this->tree->alpha;
     int num_vals_total = this->tree->attr_vals.at(attr).size();
     int num_vals_in_c = 0;
@@ -1089,7 +1207,7 @@ inline double CobwebNode::entropy_attr(ATTR_TYPE attr){
     }
 
     double ratio = 1.0;
-    if (this->tree->weight_attr){
+    if (this->tree->weight_attr and this->tree->root->a_count.count(attr)){
         ratio = (1.0 * this->tree->root->a_count.at(attr)) / (this->tree->root->count);
         // ratio = (1.0 * attr_count) / this->count;
     }
@@ -2134,7 +2252,7 @@ inline double CobwebNode::category_utility(){
         root_entropy += this->tree->root->entropy_attr(attr);
         child_entropy += this->entropy_attr(attr);
     }
-
+    
     return p_of_child * (root_entropy - child_entropy);
 
 }
@@ -2241,7 +2359,6 @@ inline double CobwebNode::log_prob_instance(const AV_COUNT_TYPE &instance){
 
     double log_prob = 0;
 
-
     for (auto &[attr, vAttr]: instance) {
         bool hidden = attr.is_hidden();
         if (hidden || !this->tree->attr_vals.count(attr)){
@@ -2336,7 +2453,7 @@ inline double CobwebNode::log_prob_instance_missing(const AV_COUNT_TYPE &instanc
         }
         else {
             double cnt = 1.0;
-            if (this->tree->weight_attr){
+            if (this->tree->weight_attr and this->tree->root->a_count.count(attr)){
                 cnt = (1.0 * this->tree->root->a_count.at(attr)) / (this->tree->root->count);
             }
 
@@ -2365,23 +2482,29 @@ inline double CobwebNode::log_prob_instance_missing(const AV_COUNT_TYPE &instanc
     int main(int argc, char* argv[]) {
         std::vector<AV_COUNT_TYPE> instances;
         std::vector<CobwebNode*> cs;
-        auto tree = CobwebTree(0.01, false, 2, true, true);
+        auto tree = CobwebTree(0.000001, false, 0, true, false);
 
-        for (int i = 0; i < 1000; i++){
+        for (int i = 0; i < 200; i++){
             INSTANCE_TYPE inst;
+            std::cout << "Instance " << i << std::endl;
             inst["anchor"]["word" + std::to_string(i)] = 1;
             inst["anchor2"]["word" + std::to_string(i % 10)] = 1;
             inst["anchor3"]["word" + std::to_string(i % 20)] = 1;
-            inst["anchor4"]["word" + std::to_string(i % 100)] = 1;
+            inst["anchor4"]["word" + std::to_string(i % 13)] = 1;
             cs.push_back(tree.ifit(inst));
         }
-
-        return 0;
     }
 
 
+#ifndef NO_PYBIND11
     PYBIND11_MODULE(cobweb, m) {
         m.doc() = "cobweb plug-in"; // optional module docstring
+        
+        py::class_<CachedString>(m, "CachedString")
+            .def(py::init<std::string>())
+            .def("__str__", &CachedString::get_string)
+            .def("__hash__", &CachedString::get_hash)
+            .def("__eq__", &CachedString::operator==);
 
         py::class_<CobwebNode>(m, "CobwebNode")
             .def(py::init<>())
@@ -2406,6 +2529,7 @@ inline double CobwebNode::log_prob_instance_missing(const AV_COUNT_TYPE &instanc
             .def("partition_utility", &CobwebNode::partition_utility)
             .def("__str__", &CobwebNode::__str__)
             .def("concept_hash", &CobwebNode::concept_hash)
+            .def("num_concepts", &CobwebNode::num_concepts)
             .def_readonly("count", &CobwebNode::count)
             .def_readonly("children", &CobwebNode::children, py::return_value_policy::reference)
             .def_readonly("parent", &CobwebNode::parent, py::return_value_policy::reference)
@@ -2429,6 +2553,7 @@ inline double CobwebNode::log_prob_instance_missing(const AV_COUNT_TYPE &instanc
                     py::arg("instance") = std::vector<AV_COUNT_TYPE>(),
                     // py::arg("get_best_concept") = false,
                     py::return_value_policy::reference)
+            .def("obtain_representation", &CobwebTree::obtain_representation_mixture)
             .def("predict_probs", &CobwebTree::predict_probs_mixture)
             .def("predict_probs_parallel", &CobwebTree::predict_probs_mixture_parallel)
             .def("clear", &CobwebTree::clear)
@@ -2437,3 +2562,4 @@ inline double CobwebNode::log_prob_instance_missing(const AV_COUNT_TYPE &instanc
             .def("load_json", &CobwebTree::load_json)
             .def_readonly("root", &CobwebTree::root, py::return_value_policy::reference);
     }
+#endif

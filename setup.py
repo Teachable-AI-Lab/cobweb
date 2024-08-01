@@ -7,9 +7,11 @@ from pybind11.setup_helpers import build_ext
 ext_modules = intree_extensions(glob('cobweb/*.cpp'))
 
 # Specify the C++ standard for each extension module
-# for module in ext_modules:
+for module in ext_modules:
+    pass
 #     module.cxx_std = '2a'
 #     module.extra_link_args.append("-ltbb")
+    #module.extra_compile_args.append("-g3")
 
 setup(
     name="cobweb",
