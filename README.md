@@ -1,5 +1,5 @@
 # Very Fast Cobweb
-__See ([cobweb/README.md](https://github.com/Teachable-AI-Lab/cobweb/blob/main/README.md))
+__See ([cobweb/README.md](https://github.com/Teachable-AI-Lab/cobweb/blob/main/README.md))__
 
 # Extra features in Very Fast Cobweb
 ### Intergrated [Rapidjson](https://github.com/Tencent/rapidjson) for fast model loading
@@ -12,6 +12,6 @@ __See ([cobweb/README.md](https://github.com/Teachable-AI-Lab/cobweb/blob/main/R
 - `mode=3`: using _insert_ (BEST) operation, and with a small probability, use `mode=0` to get current tree operation
 
 # Todos
-[ ] Support streamline json model saving
-[ ] Investigate high memory usage during inference
+[] Support streamline json model saving
+[] Investigate high memory usage during inference
 
