@@ -5,6 +5,8 @@ from pybind11.setup_helpers import intree_extensions
 from pybind11.setup_helpers import build_ext
 
 ext_modules = intree_extensions(glob('cobweb/*.cpp'))
+# also include the rapid json library at cobweb/rapidjson
+# ext_modules += intree_extensions(glob('cobweb/rapidjson/*.cpp'))
 
 # Specify the C++ standard for each extension module
 # for module in ext_modules:
