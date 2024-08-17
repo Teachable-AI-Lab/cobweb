@@ -1,12 +1,10 @@
+import csv
+from random import seed, shuffle
+
+from tqdm import tqdm
+
 from cobweb.cobweb import CobwebTree
 from cobweb.visualize import visualize
-from random import shuffle, seed, sample
-import time
-import csv
-import numpy as np
-import pandas as pd
-from copy import copy, deepcopy
-from tqdm import tqdm
 
 """
 The example dataset is available at: 
@@ -31,7 +29,7 @@ verbose = True
 
 """ Data preprocessing. Table -> Instances (dictionaries) """
 instances = []
-with open("/home/zwang910/Research/packages/cobweb/examples/tabular/diagnose.csv", 'r') as fin:
+with open("/home/zwang910/Research/packages/cobweb/examples/tabular/diagnose.csv") as fin:
 	csv_reader = csv.reader(fin)
 	header = next(csv_reader)
 	for row in csv_reader:

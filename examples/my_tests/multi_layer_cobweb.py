@@ -1,15 +1,13 @@
+import numpy as np
 import torch
 import torchvision
-from torchvision import transforms
 from matplotlib import pyplot as plt
-import numpy as np
+from torchvision import transforms
 from tqdm import tqdm
 
-from cobweb.cobweb_torch import CobwebTorchTree
-from cobweb.visualize import visualize
-
-from cobweb.visualize import load_tree
 from cobweb.cobweb import CobwebTree
+from cobweb.cobweb_torch import CobwebTorchTree
+from cobweb.visualize import load_tree, visualize
 
 
 def imshow(img):
@@ -66,19 +64,19 @@ if __name__ == "__main__":
     for i in tqdm(range(train_images.shape[0])):
         new_represenations = {}
         label_dict = {}
-        key1 = "{}".format(train_labels[i])
+        key1 = f"{train_labels[i]}"
         label_dict[key1] = 1
         new_represenations["digit_label"] = label_dict
         
         for x in range(train_images.shape[2] - 8):
             for y in range(train_images.shape[3] - 8):
 
-                key2 = "{},{}".format(x,y)
+                key2 = f"{x},{y}"
                 leaf = loaded_tree.categorize(train_images[i, :, x:x+8, y:y+8])
                 inner_dict = {} # for holding the path for each patch
                 while leaf is not None:
                     c_id = leaf.concept_id
-                    key3 = "{}".format(c_id)
+                    key3 = f"{c_id}"
                     inner_dict[key3] = 1
                     leaf = leaf.parent
                 new_represenations[key2] = inner_dict
@@ -92,19 +90,19 @@ if __name__ == "__main__":
     for i in tqdm(range(test_images.shape[0])):
         new_represenations = {}
         label_dict = {}
-        key1 = "{}".format(test_labels[i])
+        key1 = f"{test_labels[i]}"
         label_dict[key1] = 1
         new_represenations["digit_label"] = label_dict
         
         for x in range(test_images.shape[2] - 8):
             for y in range(test_images.shape[3] - 8):
 
-                key2 = "{},{}".format(x,y)
+                key2 = f"{x},{y}"
                 leaf = loaded_tree.categorize(test_images[i, :, x:x+8, y:y+8])
                 inner_dict = {} # for holding the path for each patch
                 while leaf is not None:
                     c_id = leaf.concept_id
-                    key3 = "{}".format(c_id)
+                    key3 = f"{c_id}"
                     inner_dict[key3] = 1
                     leaf = leaf.parent
                 new_represenations[key2] = inner_dict

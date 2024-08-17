@@ -1,7 +1,8 @@
-import re
 import os
-import spacy
+import re
 from multiprocessing import Pool
+
+import spacy
 
 # Import the sentence processor from spacy
 nlp = spacy.load("en_core_web_sm", disable = ['parser'])
@@ -33,14 +34,14 @@ def process_text(text, test=False):
 def process_file(idx, name, fp, verbose=True):
 	""" Load and preprocess a text file """
 	if verbose:
-		print("Processing file {} - {}".format(idx, name))
+		print(f"Processing file {idx} - {name}")
 	if not re.search(r'^[A-Z0-9]*.TXT$', name):
 		return None
-	with open(fp, 'r', encoding='latin-1') as fin:
+	with open(fp, encoding='latin-1') as fin:
 		skip = True
 		text = ""
 		for line in fin:
-			if not skip and not "project gutenberg" in line.lower():
+			if not skip and "project gutenberg" not in line.lower():
 				text += line
 			elif "*END*THE SMALL PRINT! FOR PUBLIC DOMAIN ETEXTS" in line:
 				skip = False

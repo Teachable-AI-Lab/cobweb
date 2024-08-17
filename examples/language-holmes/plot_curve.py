@@ -1,6 +1,7 @@
 import sys
-import pandas as pd
+
 import matplotlib.pyplot as plt
+import pandas as pd
 
 """
 To see the evolution properly, 
@@ -17,12 +18,12 @@ fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(10, 8))
 
 moving_avgp = df['prob_word'].rolling(window=window).mean()
 ax1.plot(moving_avgp, color='green', label='cobweb')
-ax1.set_title('{}-Instance Moving Average of P(word|context)'.format(window))
+ax1.set_title(f'{window}-Instance Moving Average of P(word|context)')
 ax1.set_ylabel('P(word|context)')
 
 moving_avga = df['correct'].rolling(window=window).mean()
 ax2.plot(moving_avga, color='green', label='cobweb')
-ax2.set_title('{}-Instance Moving Average of Accuracy'.format(window))
+ax2.set_title(f'{window}-Instance Moving Average of Accuracy')
 ax2.set_ylabel('Accuracy')
 
 plt.legend()

@@ -1,14 +1,13 @@
+import numpy as np
 import torch
 import torchvision
-from torchvision import transforms
 from matplotlib import pyplot as plt
-import numpy as np
+from torchvision import transforms
 from tqdm import tqdm
 
 from cobweb.cobweb_torch import CobwebTorchTree
-from cobweb.visualize import visualize
-from cobweb.visualize import load_tree
-from cobweb.visualize import save_tree
+from cobweb.visualize import save_tree, visualize
+
 
 def imshow(img):
     npimg = img.numpy()

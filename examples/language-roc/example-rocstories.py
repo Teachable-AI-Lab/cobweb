@@ -1,20 +1,16 @@
-import os
-import json
+import csv
 import random as rd
-from random import random, shuffle
-from collections import Counter
-from tqdm import tqdm
-# from multiprocessing import Pool
-# from utility import load_texts, story2instances
 
-from cobweb.cobweb import CobwebTree
-from cobweb.visualize import visualize
 # import re
 import string
+
 import nltk
-import csv
 from nltk.tokenize import word_tokenize
 
+# from multiprocessing import Pool
+# from utility import load_texts, story2instances
+from cobweb.cobweb import CobwebTree
+from cobweb.visualize import visualize
 
 # def get_most_frequent_words(file_path):
 #     with open(file_path, 'r', encoding='utf-8') as file:
@@ -62,7 +58,7 @@ nltk.download('punkt')  # Download NLTK tokenizer data
 def load_and_tokenize_text(file_path):
     rows = []
     tokenized_rows = []
-    with open(file_path, 'r', encoding='utf-8') as file:
+    with open(file_path, encoding='utf-8') as file:
         for line in file:
             # Tokenize the words in each line
             tokenized_words = word_tokenize(line.lower().strip())

@@ -1,11 +1,11 @@
-import random
+import argparse
 import json
 import pprint
-import argparse
+import random
 
 import concept_formation.datasets as ds
-from concept_formation.trestle import TrestleTree
 from concept_formation.preprocessor import ObjectVariablizer
+from concept_formation.trestle import TrestleTree
 
 
 def output_json(file="forest", size=100, prune=True, seed=50, burn=1):

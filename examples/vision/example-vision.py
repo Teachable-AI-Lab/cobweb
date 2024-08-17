@@ -1,13 +1,12 @@
-import numpy as np
-import torch
-from torch.utils.data import Dataset, DataLoader, Subset, ConcatDataset
-from torchvision import datasets, transforms
-from cobweb.visualize import visualize
-import copy
 import random
-from tqdm import tqdm
-from cobweb.cobweb_torch import CobwebTorchTree
 
+import torch
+from torch.utils.data import DataLoader, Subset
+from torchvision import datasets, transforms
+from tqdm import tqdm
+
+from cobweb.cobweb_torch import CobwebTorchTree
+from cobweb.visualize import visualize
 
 # Configurations:
 size_tr = 1000  # the size of the example training set

@@ -2,15 +2,10 @@
 The Cobweb module contains the :class:`CobwebTree` and :class:`CobwebNode`
 classes which are used to achieve the basic Cobweb functionality.
 """
+import heapq
 import json
 import math
-from random import shuffle
-from random import random
-from math import log
-from math import isclose
-from collections import defaultdict
-from collections import Counter
-import heapq
+from random import random, shuffle
 
 import torch
 
@@ -18,7 +13,7 @@ import torch
 # from concept_formation.utils import most_likely_choice
 
 
-class CobwebTorchTree(object):
+class CobwebTorchTree:
     """
     The CobwebTree contains the knoweldge base of a partiucluar instance of the
     cobweb algorithm and can be used to fit and categorize instances.
@@ -223,7 +218,7 @@ class CobwebTorchTree(object):
                 current.increment_counts(instance, label)
                 break
 
-            elif not current.children:
+            if not current.children:
                 # print("fringe split")
                 new = CobwebTorchNode(shape=self.shape, device=self.device, otherNode=current)
                 current.parent = new
@@ -239,30 +234,29 @@ class CobwebTorchTree(object):
                 current = new.create_new_child(instance, label)
                 break
 
-            else:
-                best1_pu, best1, best2 = current.two_best_children(instance,
-                                                                   label)
-                _, best_action = current.get_best_operation(instance, label, best1,
-                                                            best2, best1_pu)
+            best1_pu, best1, best2 = current.two_best_children(instance,
+                                                               label)
+            _, best_action = current.get_best_operation(instance, label, best1,
+                                                        best2, best1_pu)
 
-                # print(best_action)
-                if best_action == 'best':
-                    current.increment_counts(instance, label)
-                    current = best1
-                elif best_action == 'new':
-                    current.increment_counts(instance, label)
-                    current = current.create_new_child(instance, label)
-                    break
-                elif best_action == 'merge':
-                    current.increment_counts(instance, label)
-                    new_child = current.merge(best1, best2)
-                    current = new_child
-                elif best_action == 'split':
-                    current.split(best1)
-                else:
-                    raise Exception('Best action choice "' + best_action +
-                                    '" not a recognized option. This should be'
-                                    ' impossible...')
+            # print(best_action)
+            if best_action == 'best':
+                current.increment_counts(instance, label)
+                current = best1
+            elif best_action == 'new':
+                current.increment_counts(instance, label)
+                current = current.create_new_child(instance, label)
+                break
+            elif best_action == 'merge':
+                current.increment_counts(instance, label)
+                new_child = current.merge(best1, best2)
+                current = new_child
+            elif best_action == 'split':
+                current.split(best1)
+            else:
+                raise Exception('Best action choice "' + best_action +
+                                '" not a recognized option. This should be'
+                                ' impossible...')
 
         return current
 
@@ -428,8 +422,7 @@ class CobwebTorchTree(object):
 
         if self.acuity_cutoff:
             return torch.clamp(meanSq / count, self.prior_var) # with cutoff
-        else:
-            return meanSq / count + self.prior_var # with adjustment
+        return meanSq / count + self.prior_var # with adjustment
 
     def compute_score(self, mu1, var1, p_label1, mu2, var2, p_label2):
         if (self.use_info):
@@ -466,7 +459,7 @@ class CobwebTorchTree(object):
         return score
 
 
-class CobwebTorchNode(object):
+class CobwebTorchNode:
     """
     A CobwebNode represents a concept within the knoweldge base of a particular
     :class:`CobwebTree`. Each node contains a probability table that can be
@@ -1490,9 +1483,8 @@ class CobwebTorchNode(object):
             if self.total_label_count > 0:
                 label = self.tree.reverse_labels[self.label_counts.argmax().item()]
             return self.mean.detach().clone(), label
-        else:
-            label = None
-            if self.total_label_count > 0:
-                p_labels = label_counts / label_counts.sum()
-                label = self.tree.reverse_labels[torch.multinomial(p_labels, 1).item()]
-            return torch.normal(self.mean, self.std), label
+        label = None
+        if self.total_label_count > 0:
+            p_labels = label_counts / label_counts.sum()
+            label = self.tree.reverse_labels[torch.multinomial(p_labels, 1).item()]
+        return torch.normal(self.mean, self.std), label

@@ -2,13 +2,9 @@
 The cluster model contains functions computing clustering using CobwebTrees and
 their derivatives.
 """
-from __future__ import print_function
-from __future__ import unicode_literals
-from __future__ import absolute_import
-from __future__ import division
 
-from math import log
 import copy
+from math import log
 
 # from concept_formation.cobweb3 import cv_key
 
@@ -130,8 +126,7 @@ def depth_labels(tree, instances, mod=True):
         labs.append("Concept" + str(label.concept_id))
         depth += 1
         instance_labels.append(labs)
-        if depth > max_depth:
-            max_depth = depth
+        max_depth = max(depth, max_depth)
 
     for f in instance_labels:
         f.reverse()
@@ -240,8 +235,7 @@ def AICc(clusters, leaves):
                     k += 1
     if n - k <= 1:
         return float('inf')
-    else:
-        return 2 * k - 2 * ll + 2 * k * (k + 1)/(n - k - 1)
+    return 2 * k - 2 * ll + 2 * k * (k + 1)/(n - k - 1)
 
 
 def AIC(clusters, leaves):

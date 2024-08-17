@@ -2,17 +2,9 @@
 The visualize module provides functions for generating html visualizations of
 trees created by the other modules of concept_formation.
 """
-from __future__ import print_function
-from __future__ import unicode_literals
-from __future__ import absolute_import
-from __future__ import division
-from os.path import realpath
-from os.path import dirname
-from os.path import join
-from os.path import exists
-from shutil import copy
 import webbrowser
-import json
+from os.path import dirname, exists, join, realpath
+from shutil import copy
 
 from cobweb.cobweb import CobwebNode
 
@@ -91,7 +83,7 @@ def load_tree(tree, id):
     int_str = str(id)
     filename = 'output_' + int_str + '.js'
     output_file = join(module_path, 'saved_cobweb_trees', filename)
-    with open(output_file, 'r') as js_file:
+    with open(output_file) as js_file:
         js_code = js_file.read()
     # with open(output_file, 'r') as js_file:
     #     js_code = json.load(js_file)

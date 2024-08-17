@@ -1,16 +1,16 @@
-import numpy as np
-import torch
-import copy
-import random
 import json
+import random
+
+import matplotlib.pyplot as plt
+import torch
+from cluster import cluster
+from sklearn.decomposition import PCA
+from sklearn.feature_extraction import DictVectorizer
+from sklearn.metrics import adjusted_rand_score
 from tqdm import tqdm
+
 from cobweb.cobweb_torch import CobwebTorchTree
 from cobweb.visualize import visualize
-from sklearn.metrics import adjusted_rand_score
-from sklearn.feature_extraction import DictVectorizer
-import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
-from cluster import cluster
 
 # Configurations:
 seed = 100
@@ -22,7 +22,7 @@ assert n_split <= 7, "the number of clusters should be less than 8 (in this exam
 
 
 """ Data loading and preprocessing """
-with open('iris.json', 'r') as file:
+with open('iris.json') as file:
 	instances = json.load(file)
 random.shuffle(instances)
 # Remove the classifications they have
