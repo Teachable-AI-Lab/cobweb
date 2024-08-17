@@ -10,6 +10,6 @@ pybind11_add_module(cobweb_discrete src/cobweb_discrete.cpp WITH_SOABI)
 target_include_directories(cobweb_discrete PRIVATE include/)
 target_link_libraries(cobweb_discrete PRIVATE pybind11::headers)
 target_link_libraries(cobweb_discrete PRIVATE Eigen3::Eigen)
-target_compile_features(cobweb_discrete PRIVATE cxx_std_20)
+target_compile_features(cobweb_discrete PRIVATE cxx_std_17)
 
 install(TARGETS cobweb_discrete DESTINATION cobweb)
