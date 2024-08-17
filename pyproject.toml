@@ -1,11 +1,26 @@
 [build-system]
-requires = [
-    "setuptools>=42",
-    "wheel",
-    "pybind11>=2.10.0",
-    "setuptools-git-versioning<2",
-]
-build-backend = "setuptools.build_meta"
+requires = ["scikit-build-core", "pybind11"]
+build-backend = "scikit_build_core.build"
 
-[tool.setuptools-git-versioning]
-enabled = true
+[project]
+name = "cobweb"
+version = "0.0.1"
+authors = [
+  { name="Christopher J. MacLellan", email="cmaclell@gatech.edu" },
+]
+description = "A modern version of cobweb that pushes the envelope."
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "pybind11", "numpy", "tqdm"
+]
+
+[project.urls]
+Homepage = "https://github.com/Teachable-AI-Lab/cobweb"
