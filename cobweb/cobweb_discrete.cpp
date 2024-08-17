@@ -3591,7 +3591,7 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-PYBIND11_MODULE(cobweb, m)
+PYBIND11_MODULE(cobweb_discrete, m)
 {
     m.doc() = "cobweb plug-in"; // optional module docstring
 
