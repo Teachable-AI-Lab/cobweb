@@ -2,43 +2,46 @@
 The visualize module provides functions for generating html visualizations of
 trees created by the other modules of concept_formation.
 """
+
 import webbrowser
-from os.path import dirname, exists, join, realpath
+from pathlib import Path
 from shutil import copy
 
-from cobweb.cobweb import CobwebNode
+from cobweb.cobweb_discrete import CobwebNode
 
 
 def _copy_file(filename, target_dir):
-    module_path = dirname(__file__)
-    src = join(module_path, 'visualization_files', filename)
-    dst = join(target_dir, filename)
+    module_path = Path(__file__).parent
+    src = module_path / "visualization_files" / filename
+    dst = Path(target_dir) / filename
     copy(src, dst)
-    return dst
+    return str(dst)
 
 
 def _gen_output_file(js_ob):
-    return '(function (){ window.trestle_output='+js_ob+'; })();'
+    return "(function (){ window.trestle_output=" + js_ob + "; })();"
 
 
 def _gen_viz(js_ob, dst, recreate_html):
     if dst is None:
-        module_path = dirname(__file__)
-        output_file = join(module_path, 'visualization_files', 'output.js')
-        with open(output_file, 'w') as out:
+        module_path = Path(__file__).parent
+        output_file = module_path / "visualization_files" / "output.js"
+        with output_file.open("w") as out:
             out.write(_gen_output_file(js_ob))
-        viz_html_file = join(module_path, 'visualization_files', 'viz.html')
-        webbrowser.open('file://'+realpath(viz_html_file))
+        viz_html_file = module_path / "visualization_files" / "viz.html"
+        webbrowser.open(f"file://{viz_html_file.resolve()}")
     else:
-        if recreate_html or not exists(join(dst, 'viz.html')):
-            viz_file = _copy_file('viz.html', dst)
-            _copy_file('viz_logic.js', dst)
-            _copy_file('viz_styling.css', dst)
+        dst_path = Path(dst)
+        viz_html_path = dst_path / "viz.html"
+        if recreate_html or not viz_html_path.exists():
+            viz_file = _copy_file("viz.html", dst)
+            _copy_file("viz_logic.js", dst)
+            _copy_file("viz_styling.css", dst)
         else:
-            viz_file = join(dst, 'viz.html')
-        with open(join(dst, 'output.js'), 'w') as out:
+            viz_file = viz_html_path
+        with (dst_path / "output.js").open("w") as out:
             out.write(_gen_output_file(js_ob))
-        webbrowser.open('file://' + realpath(viz_file))
+        webbrowser.open(f"file://{viz_file.resolve()}")
 
 
 def visualize(tree, dst=None, recreate_html=True):
@@ -65,39 +68,36 @@ def visualize(tree, dst=None, recreate_html=True):
     _gen_viz(tree.root.output_json(), dst, recreate_html)
 
 
-# begin Modification 
-# (for saving & loading the tree)    
-def save_tree(tree,id):
+# begin Modification
+# (for saving & loading the tree)
+def save_tree(tree, id):
     js_ob = tree.dump_json()
-    #print("js_ob tyep:", type(js_ob))
-    int_str = str(id)
-    filename = 'output_' + int_str + '.js'
-    module_path = dirname(__file__)
-    output_file = join(module_path, 'saved_cobweb_trees', filename)
-    with open(output_file, 'w') as json_file:
-        #json.dump(js_ob, json_file)
+    filename = f"output_{id}.js"
+    module_path = Path(__file__).parent
+    output_file = module_path / "saved_cobweb_trees" / filename
+    with output_file.open("w") as json_file:
         json_file.write(js_ob)
 
+
 def load_tree(tree, id):
-    module_path = dirname(__file__)
-    int_str = str(id)
-    filename = 'output_' + int_str + '.js'
-    output_file = join(module_path, 'saved_cobweb_trees', filename)
-    with open(output_file) as js_file:
+    filename = f"output_{id}.js"
+    module_path = Path(__file__).parent
+    output_file = module_path / "saved_cobweb_trees" / filename
+    with output_file.open() as js_file:
         js_code = js_file.read()
-    # with open(output_file, 'r') as js_file:
-    #     js_code = json.load(js_file)
-    
+
     tree.load_json(js_code)
-    #tree.load_json_iterative(js_code)
-    return(tree)
+    return tree
+
+
 # end Modification
 
 
 def _trim_leaves(j_ob):
-    ret = {k: j_ob[k] for k in j_ob if k != 'children'}
-    ret['children'] = [_trim_leaves(
-        child) for child in j_ob['children'] if len(child['children']) > 0]
+    ret = {k: j_ob[k] for k in j_ob if k != "children"}
+    ret["children"] = [
+        _trim_leaves(child) for child in j_ob["children"] if len(child["children"]) > 0
+    ]
     return ret
 
 
@@ -129,18 +129,19 @@ def visualize_no_leaves(tree, cuts=1, dst=None, recreate_html=True):
     :type create_html: bool
     """
     j_ob = tree.root.output_json()
-    for i in range(cuts):
+    for _ in range(cuts):
         j_ob = _trim_leaves(j_ob)
     _gen_viz(j_ob, dst, recreate_html)
 
 
 def _trim_to_clusters(j_ob, clusters):
-    ret = {k: j_ob[k] for k in j_ob if k != 'children'}
-    if j_ob['name'] not in clusters:
-        ret['children'] = [_trim_to_clusters(
-            child, clusters) for child in j_ob['children']]
+    ret = {k: j_ob[k] for k in j_ob if k != "children"}
+    if j_ob["name"] not in clusters:
+        ret["children"] = [
+            _trim_to_clusters(child, clusters) for child in j_ob["children"]
+        ]
     else:
-        ret['children'] = []
+        ret["children"] = []
     return ret
 
 
