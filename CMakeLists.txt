@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.27...3.30)
 project(cobweb LANGUAGES CXX)
-# set(CMAKE_CXX_STANDARD 20) set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 set(PYBIND11_FINDPYTHON ON)
 find_package(pybind11 CONFIG REQUIRED)
@@ -20,5 +19,5 @@ pybind11_add_module(
 target_include_directories(cobweb_continuous PRIVATE include/)
 target_link_libraries(cobweb_continuous PRIVATE pybind11::headers)
 target_link_libraries(cobweb_continuous PRIVATE Eigen3::Eigen)
-target_compile_features(cobweb_continuous PRIVATE cxx_std_20)
+target_compile_features(cobweb_continuous PRIVATE cxx_std_17)
 install(TARGETS cobweb_continuous DESTINATION cobweb)
