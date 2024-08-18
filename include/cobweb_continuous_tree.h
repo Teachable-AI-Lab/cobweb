@@ -2,7 +2,6 @@
 #define COBWEB_CONTINUOUS_TREE_H
 
 #include <Eigen/Dense>
-#include <numbers>
 #include "cobweb_continuous_node.h"
 
 #define BEST 0

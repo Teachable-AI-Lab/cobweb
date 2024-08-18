@@ -1,6 +1,14 @@
 # Very Fast Cobweb
 __See ([cobweb/README.md](https://github.com/Teachable-AI-Lab/cobweb/blob/main/README.md))__
 
+# Installation
+
+Some of the modules depend on Eigen3, which can be installed on mac with the following: `brew install eigen`.
+
+It can be installed on ubuntu with the following: `sudo apt install libeigen3-dev`
+
+Afterwards navigate to the project root directory and run `pip install .`
+
 # Extra features in Very Fast Cobweb
 ### Intergrated [Rapidjson](https://github.com/Tencent/rapidjson) for fast model loading
 ### Attribute types are now changed to `int` from `CachedString`

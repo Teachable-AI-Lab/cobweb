@@ -129,7 +129,7 @@ void CobwebContinuousTree::clear()
 }
 
 Eigen::VectorXd CobwebContinuousTree::compute_var(const Eigen::VectorXd& sum_sq, const double count){
-   return sum_sq / count + this->prior_var;
+    return sum_sq / count + this->prior_var;
 }
 
 double CobwebContinuousTree::compute_score(const Eigen::VectorXd& child_mean,
