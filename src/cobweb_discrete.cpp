@@ -23,6 +23,7 @@
 #include "json.hpp"
 #include "cached_string.hpp"
 #include "BS_thread_pool.hpp"
+#include "helper.h"
 
 namespace py = pybind11;
 
@@ -55,10 +56,6 @@ typedef std::pair<double, int> OPERATION_TYPE;
 class CobwebTree;
 class CobwebNode;
 
-std::random_device rd;
-std::mt19937_64 gen(rd());
-std::uniform_real_distribution<double> unif(0, 1);
-
 std::unordered_map<int, double> lgammaCache;
 std::unordered_map<int, std::unordered_map<int, int>> binomialCache;
 std::unordered_map<int, std::unordered_map<double, double>> entropy_k_cache;
@@ -76,134 +73,6 @@ const std::unordered_map<std::string, int> ATTRIBUTE_MAP = {
     {"av_count", 100000014},
     {"children", 100000015}};
 
-
-void displayProgressBar(int width, double progress_percentage, double seconds_elapsed)
-{
-
-    int hours = seconds_elapsed / 3600;
-    int minutes = (seconds_elapsed - hours * 3600) / 60;
-    int secs = seconds_elapsed - hours * 3600 - minutes * 60;
-
-    double estimated = seconds_elapsed / progress_percentage * (1.0 - progress_percentage);
-
-    int hours_left = estimated / 3600;
-    int minutes_left = (estimated - hours_left * 3600) / 60;
-    int secs_left = estimated - hours_left * 3600 - minutes_left * 60;
-
-    int pos = width * progress_percentage;
-    std::cout << "[";
-    for (int i = 0; i < width; ++i)
-    {
-        if (i < pos)
-            std::cout << "=";
-        else if (i == pos)
-            std::cout << ">";
-        else
-            std::cout << " ";
-    }
-    std::cout << "] " << int(progress_percentage * 100.0) << " %; " << hours << ":" << std::setfill('0') << std::setw(2) << minutes << ":" << std::setfill('0') << std::setw(2) << secs << " elapsed; " << hours_left << ":" << std::setfill('0') << std::setw(2) << minutes_left << ":" << std::setfill('0') << std::setw(2) << secs_left << " left\r";
-    std::cout.flush();
-}
-
-double lgamma_cached(int n)
-{
-    auto it = lgammaCache.find(n);
-    if (it != lgammaCache.end())
-        return it->second;
-
-    double result = std::lgamma(n);
-    lgammaCache[n] = result;
-    return result;
-}
-
-int nChoosek(int n, int k)
-{
-    if (k > n)
-        return 0;
-    if (k * 2 > n)
-        k = n - k;
-    if (k == 0)
-        return 1;
-
-    // Check if the value is in the cache
-    auto it_n = binomialCache.find(n);
-    if (it_n != binomialCache.end())
-    {
-        auto it_k = it_n->second.find(k);
-        if (it_k != it_n->second.end())
-            return it_k->second;
-    }
-
-    int result = n;
-    for (int i = 2; i <= k; ++i)
-    {
-        result *= (n - i + 1);
-        result /= i;
-    }
-
-    // Store the computed value in the cache
-    binomialCache[n][k] = result;
-    // std::cout << n << "!" << k << " : " << result << std::endl;
-
-    return result;
-}
-
-double entropy_component_k(int n, double p)
-{
-    if (p == 0.0 || p == 1.0)
-    {
-        return 0.0;
-    }
-
-    auto it_n = entropy_k_cache.find(n);
-    if (it_n != entropy_k_cache.end())
-    {
-        auto it_p = it_n->second.find(p);
-        if (it_p != it_n->second.end())
-            return it_p->second;
-    }
-
-    double precision = 1e-10;
-    double info = -n * p * log(p);
-
-    // This is where we'll see the highest entropy
-    int mid = std::ceil(n * p);
-
-    for (int xi = mid; xi > 2; xi--)
-    {
-        double v = nChoosek(n, xi) * std::pow(p, xi) * std::pow((1 - p), (n - xi)) * lgamma_cached(xi + 1);
-        if (v < precision)
-            break;
-        info += v;
-    }
-
-    for (int xi = mid + 1; xi <= n; xi++)
-    {
-        double v = nChoosek(n, xi) * std::pow(p, xi) * std::pow((1 - p), (n - xi)) * lgamma_cached(xi + 1);
-        if (v < precision)
-            break;
-        info += v;
-    }
-
-    entropy_k_cache[n][p] = info;
-
-    return info;
-}
-
-double custom_rand()
-{
-    return unif(gen);
-}
-
-std::string repeat(std::string s, int n)
-{
-    std::string res = "";
-    for (int i = 0; i < n; i++)
-    {
-        res += s;
-    }
-    return res;
-}
 
 VALUE_TYPE most_likely_choice(std::vector<std::tuple<VALUE_TYPE, double>> choices)
 {
@@ -226,47 +95,6 @@ VALUE_TYPE weighted_choice(std::vector<std::tuple<VALUE_TYPE, double>> choices)
 {
     std::cout << "weighted_choice: Not implemented yet" << std::endl;
     return std::get<0>(choices[0]);
-}
-
-std::string doubleToString(double cnt)
-{
-    std::ostringstream stream;
-    // Set stream to output floating point numbers with maximum precision
-    stream << std::fixed << std::setprecision(std::numeric_limits<double>::max_digits10) << cnt;
-    return stream.str();
-}
-
-double logsumexp(std::vector<double> arr)
-{
-    if (arr.size() > 0)
-    {
-        double max_val = arr[0];
-        double sum = 0;
-
-        for (auto &v : arr)
-        {
-            if (v > max_val)
-            {
-                max_val = v;
-            }
-        }
-
-        for (auto &v : arr)
-        {
-            sum += exp(v - max_val);
-        }
-        return log(sum) + max_val;
-    }
-    else
-    {
-        return 0.0;
-    }
-}
-
-double logsumexp(double n1, double n2)
-{
-    double max_val = std::max(n1, n2);
-    return log(exp(n1 - max_val) + exp(n2 - max_val)) + max_val;
 }
 
 class CobwebNode
