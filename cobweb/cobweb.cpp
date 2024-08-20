@@ -17,6 +17,11 @@
 #include "rapidjson/document.h"
 #include "rapidjson/reader.h"
 #include "rapidjson/filereadstream.h"
+#include "rapidjson/writer.h"
+#include "rapidjson/ostreamwrapper.h"
+#include "rapidjson/stringbuffer.h"
+#include <fstream>
+#include <string>
 #include <stack>
 
 #include "assert.h"
@@ -75,6 +80,7 @@ const std::unordered_map<std::string, int> ATTRIBUTE_MAP = {
     {"sum_n_logn", 100000013},
     {"av_count", 100000014},
     {"children", 100000015}};
+
 
 
 void displayProgressBar(int width, double progress_percentage, double seconds_elapsed)
@@ -269,6 +275,18 @@ double logsumexp(double n1, double n2)
     return log(exp(n1 - max_val) + exp(n2 - max_val)) + max_val;
 }
 
+double eff_logsumexp(double n1, double n2)
+{
+    if (n1 == n2) {
+        return n1 + log(2.0);
+    }
+
+    double max_val = std::max(n1, n2);
+    double min_val = std::min(n1, n2);
+
+    return log1p(exp(min_val - max_val)) + max_val;
+}
+
 class CobwebNode
 {
 
@@ -349,6 +367,7 @@ class CobwebTree
 
 public:
     float alpha;
+    float log_alpha;
     bool weight_attr;
     int objective;
     bool children_norm;
@@ -359,6 +378,7 @@ public:
     CobwebTree(float alpha, bool weight_attr, int objective, bool children_norm, bool norm_attributes)
     {
         this->alpha = alpha;
+        this->log_alpha = log(alpha);
         this->weight_attr = weight_attr;
         this->objective = objective;
         this->children_norm = children_norm;
@@ -533,6 +553,58 @@ public:
 
         MyHandler(CobwebTree *tree) : cobwebTree(tree) {}
 
+        std::unordered_map<std::string, double> get_tree_stats()
+        {
+            std::unordered_map<std::string, double> stats;
+            double depth = 0;
+            double num_nodes = 0;
+            double max_children = 0;
+            double min_children = 1000000000;
+            double avg_children = 0;
+            int has_children = 0;
+            double avg_av_count_size = 0;
+            double max_av_count_size = 0;
+            double min_av_count_size = 1000000000;
+            
+            // traverse the tree and get the stats
+            // implement a queue to traverse the tree
+            std::queue<std::pair<CobwebNode *, double>> q;
+            q.push({cobwebTree->root, 0});
+            while (!q.empty())
+            {
+                CobwebNode *currentNode = q.front().first;
+                double currentDepth = q.front().second;
+                q.pop();
+                num_nodes++;
+                depth = std::max(depth, currentDepth);
+                avg_av_count_size += currentNode->av_count.at(20000001).size();
+                max_av_count_size = std::max(max_av_count_size, (double)currentNode->av_count.at(20000001).size());
+                min_av_count_size = std::min(min_av_count_size, (double)currentNode->av_count.at(20000001).size());
+                if (currentNode->children.size() > 0)
+                {
+                    has_children++;
+                    min_children = std::min(min_children, (double)currentNode->children.size());
+
+                }
+                for (auto &child : currentNode->children)
+                {
+                    q.push({child, currentDepth + 1});
+                }
+
+                avg_children += currentNode->children.size();
+                max_children = std::max(max_children, (double)currentNode->children.size());
+            }
+            stats["depth"] = depth;
+            stats["num_nodes"] = num_nodes;
+            stats["avg_chindren_size"] = avg_children / has_children;
+            stats["avg_av_count_size"] = avg_av_count_size / num_nodes;
+            stats["max_av_count_size"] = max_av_count_size;
+            stats["min_av_count_size"] = min_av_count_size;
+            stats["max_children"] = max_children;
+            stats["min_children"] = min_children;
+            return stats;
+        }
+
         bool Key(const char *str, rapidjson::SizeType length, bool copy)
         {
             std::string key(str, length);
@@ -698,6 +770,9 @@ public:
             {
                 // nodeStack.push(new CobwebNode());
                 CobwebNode *rootNode = new CobwebNode();
+                rootNode->tree = cobwebTree;
+                rootNode->parent = nullptr;
+
                 nodeStack.push(rootNode);
                 cobwebTree->root = rootNode;
                 // print out the length of the stack
@@ -713,6 +788,8 @@ public:
                 // added children
                 // std::cout << "added children" << std::endl;
                 CobwebNode *newNode = new CobwebNode();
+                newNode->tree = cobwebTree;
+                newNode->parent = nodeStack.top();
 
                 // std::cout << "new node address: " << newNode << std::endl;
                 // std::cout << "parent node address: " << nodeStack.top() << std::endl;
@@ -816,6 +893,84 @@ public:
         }
     };
 
+    void write_json_node(rapidjson::Writer<rapidjson::OStreamWrapper> &writer, CobwebNode *node)
+    {
+        writer.StartObject();
+        writer.Key("count");
+        writer.Double(node->count);
+
+        writer.Key("a_count");
+        writer.StartObject();
+        for (auto &[attr, count] : node->a_count)
+        {
+            writer.Key(std::to_string(attr).c_str());
+            writer.Double(count);
+        }
+        writer.EndObject();
+
+        writer.Key("sum_n_logn");
+        writer.StartObject();
+        for (auto &[attr, count] : node->sum_n_logn)
+        {
+            writer.Key(std::to_string(attr).c_str());
+            writer.Double(count);
+        }
+        writer.EndObject();
+
+        writer.Key("av_count");
+        writer.StartObject();
+        for (auto &[attr, val_map] : node->av_count)
+        {
+            writer.Key(std::to_string(attr).c_str());
+            writer.StartObject();
+            for (auto &[val, count] : val_map)
+            {
+                writer.Key(std::to_string(val).c_str());
+                writer.Double(count);
+            }
+            writer.EndObject();
+        }
+        writer.EndObject();
+
+        writer.Key("children");
+        writer.StartArray();
+        for (auto &child : node->children)
+        {
+            write_json_node(writer, child);
+        }
+        writer.EndArray();
+
+        writer.EndObject();
+    }
+
+    void write_json_stream(const std::string &save_path)
+    {
+        std::ofstream ofs(save_path, std::ios::binary);
+        rapidjson::OStreamWrapper osw(ofs);
+        rapidjson::Writer<rapidjson::OStreamWrapper> writer(osw);
+
+        writer.StartObject();
+        writer.Key("alpha");
+        writer.Double(this->alpha);
+
+        writer.Key("weight_attr");
+        writer.Uint(this->weight_attr);
+
+        writer.Key("objective");
+        writer.Uint(this->objective);
+
+        writer.Key("children_norm");
+        writer.Uint(this->children_norm);
+
+        writer.Key("norm_attributes");
+        writer.Uint(this->norm_attributes);
+
+        writer.Key("root");
+        write_json_node(writer, this->root);
+
+        writer.EndObject();
+    }
+
     void load_json_stream(std::string json_model_path)
     {
         FILE *fp = fopen(json_model_path.c_str(), "rb");
@@ -827,45 +982,40 @@ public:
 
         const int bufferSize = 65536; // 256KB
         char buffer[bufferSize];
+        // char *buffer = new char[bufferSize]; // Allocate buffer on the heap
+
         rapidjson::FileReadStream is(fp, buffer, sizeof(buffer));
         rapidjson::Reader reader;
         MyHandler handler(this);
-
-        // std::cout << "Tree init address: " << this << std::endl;
-
-        // // print if it is nullptr
-        // if (this == nullptr)
-        // {
-        //     std::cout << "Tree is nullptr" << std::endl;
-        // }
-        // else
-        // {
-        //     std::cout << this << std::endl;
-        // }
 
         if (!reader.Parse(is, handler))
         {
             std::cout << "Error while parsing JSON." << std::endl;
         }
 
-        // std::cout << "after parsing address: " << this << std::endl;
+        for (auto &[attr, val_map] : this->root->av_count)
+        {
+            for (auto &[val, cnt] : val_map)
+            {
+                this->attr_vals[attr].insert(val);
+            }
+        }
 
-        // std::string this_str = this->dump_json();
-        // std::cout << this_str << std::endl;
+        std::unordered_map<std::string, double> stats = handler.get_tree_stats();
+        std::cout << "Depth: " << stats["depth"] << std::endl;
+        std::cout << "Number of Nodes: " << stats["num_nodes"] << std::endl;
+        std::cout << "avg_chindren_size: " << stats["avg_chindren_size"] << std::endl;
+        std::cout << "Max Children: " << stats["max_children"] << std::endl;
+        std::cout << "Min Children: " << stats["min_children"] << std::endl;
+        std::cout << "Average AV Count Size: " << stats["avg_av_count_size"] << std::endl;
+        std::cout << "Max AV Count Size: " << stats["max_av_count_size"] << std::endl;
+        std::cout << "Min AV Count Size: " << stats["min_av_count_size"] << std::endl;
 
-        // if (this == nullptr)
-        // {
-        //     std::cout << "Tree, after is nullptr" << std::endl;
-        // }
-        // else
-        // {
-        //     std::cout << "Not a nullptr" << std::endl;
-
-        // }
-
-        // std::cout << "Loaded JSON from: " << json_model_path << std::endl;
-
+        // print tree
+        // std::cout << "tree: " << this->dump_json() << std::endl;
         fclose(fp);
+        // delete[] buffer; // Don't forget to free the memory
+
 
         // std::cout << "after close address: " << this << std::endl;
     }
@@ -1379,8 +1529,17 @@ public:
 
     std::tuple<std::unordered_map<std::string, double>, std::unordered_map<int, std::unordered_map<int, double>>> predict_probs_mixture_helper(const AV_COUNT_TYPE &instance, double ll_path, int max_nodes, bool greedy, bool missing)
     {
-
         std::unordered_map<int, std::unordered_map<int, double>> out;
+        // cache the out as the shape of tree->attr_vals for faster access
+        // std::unordered_map<int, std::unordered_map<int, double>> out;
+        for (auto &[attr, val_set] : this->attr_vals)
+        {
+            for (auto &val : val_set)
+            {
+                out[attr][val] = -INFINITY;
+            }
+        }
+
         std::unordered_map<int, std::unordered_map<int, std::vector<double>>> weighted_pred_probs;
 
         std::unordered_map<std::string, double> operation_stats;
@@ -1421,7 +1580,8 @@ public:
             std::chrono::duration<double> elapsed_log_prob_instance_time = log_prob_instance_time_end - log_prob_instance_time_start;
             log_prob_instance_time += elapsed_log_prob_instance_time.count();
         }
-
+        // std::cout << "predict_probs_mixture_helper" << std::endl;
+        // std::cout << "we here?" << std::endl;
         // std::cout << "root instance ll " << root_ll_inst << std::endl;
 
         auto queue = std::priority_queue<
@@ -1433,6 +1593,7 @@ public:
         auto start_while = std::chrono::high_resolution_clock::now();
         while (queue.size() > 0)
         {
+            // std::cout << "queue size: " << queue.size() << std::endl;
             while_count += 1;
 
             auto node = queue.top();
@@ -1458,29 +1619,35 @@ public:
             }
             else
             {
-                total_weight = logsumexp(total_weight, curr_score);
+                total_weight = eff_logsumexp(total_weight, curr_score);
             }
-
+            // std::cout << "everything ok?" << std::endl;
             // auto curr_preds = curr->predict_probs();
             auto start_predict_prob_log_time = std::chrono::high_resolution_clock::now();
             auto curr_log_probs = curr->predict_log_probs();
             auto end_predict_prob_log_time = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed_predict_prob_log_time = end_predict_prob_log_time - start_predict_prob_log_time;
             predict_prob_log_time += elapsed_predict_prob_log_time.count();
+            // std::cout << "we here?" << std::endl;
 
             auto start_lse_loop = std::chrono::high_resolution_clock::now();
+            // find out the keys in the current log_probs
             for (auto &[attr, val_set] : curr_log_probs)
             {
+                // std::cout << "we here?" << std::endl;
                 for (auto &[val, log_p] : val_set)
                 {
-                    if (out.count(attr) && out.at(attr).count(val))
-                    {
-                        out[attr][val] = logsumexp(out[attr][val], curr_score + log_p);
-                    }
-                    else
-                    {
-                        out[attr][val] = curr_score + log_p;
-                    }
+                    out[attr][val] = eff_logsumexp(out[attr][val], curr_score + log_p);
+                    // if (out.count(attr) && out.at(attr).count(val))
+                    // {
+                    //     out[attr][val] = eff_logsumexp(out[attr][val], curr_score + log_p);
+                    // }
+                    // else
+                    // {
+                    //     out[attr][val] = curr_score + log_p;
+                    // }
+                    // print out
+                    // std::cout << "out[" << attr << "][" << val << "] = " << out[attr][val] << std::endl;
                 }
             }
             auto end_lse_loop = std::chrono::high_resolution_clock::now();
@@ -3159,33 +3326,56 @@ inline std::unordered_map<int, std::unordered_map<int, double>> CobwebNode::pred
 inline std::unordered_map<int, std::unordered_map<int, double>> CobwebNode::predict_log_probs()
 {
     std::unordered_map<int, std::unordered_map<int, double>> out;
+    // std::cout << this->tree->attr_vals.size() << std::endl;
     for (auto &[attr, val_set] : this->tree->attr_vals)
     {
         // std::cout << attr << std::endl;
         int num_vals = this->tree->attr_vals.at(attr).size();
         float alpha = this->tree->alpha;
         COUNT_TYPE attr_count = 0;
-
+        float second_term = 0;
+        float zero_av_count_log_prob = 0;
         if (this->a_count.count(attr))
         {
             attr_count = this->a_count.at(attr);
+            second_term = log(attr_count + num_vals * alpha);
         }
+        else
+        {
+            second_term = log(num_vals) + this->tree->log_alpha;
+        }
+        zero_av_count_log_prob = this->tree->log_alpha - second_term; 
 
+        // double zero_count = 0;
+        // double total_count = 0;
+        // double zero_prob = 0;
         for (auto val : val_set)
         {
             // std::cout << val << std::endl;
+            // total_count ++;
             COUNT_TYPE av_count = 0;
             if (this->av_count.count(attr) and this->av_count.at(attr).count(val))
             {
                 av_count = this->av_count.at(attr).at(val);
+                out[attr][val] = (log(av_count + alpha) - second_term);
             }
+            // else
+            // {
+            //     out[attr][val] = zero_av_count_log_prob;
+            // }
+            // else
+            // {
+            //     // zero_count ++;
+            // }
 
             // double p = ((av_count + alpha) / (attr_count + num_vals * alpha));
             // out[attr.get_string()][val.get_string()] += p;
             // std::cout << p << std::endl;
             // out[attr.get_string()][val.get_string()] = (log(av_count + alpha) - log(attr_count + num_vals * alpha));
-            out[attr][val] = (log(av_count + alpha) - log(attr_count + num_vals * alpha));
+            // out[attr][val] = (log(av_count + alpha) - second_term);
         }
+        // zero_prob = zero_count / total_count;
+        // std::cout << "Total: " << total_count << ", Zero: " << zero_count << ", Zero Prob: " << zero_prob << std::endl;
     }
 
     return out;
@@ -3436,14 +3626,16 @@ inline double CobwebNode::log_prob_instance(const AV_COUNT_TYPE &instance)
     for (auto &[attr, vAttr] : instance)
     {
         // bool hidden = attr.is_hidden();
+        // std::cout << "ATTR: " << attr << std::endl;
+        // std::cout << "vAttr: " << vAttr.size() << std::endl;
+        // std::cout << "ATTR VALS: " << this->tree << std::endl;
+
         bool hidden = (attr < 0);
         if (hidden || !this->tree->attr_vals.count(attr))
         {
             continue;
         }
-
         double num_vals = this->tree->attr_vals.at(attr).size();
-
         for (auto &[val, cnt] : vAttr)
         {
             if (!this->tree->attr_vals.at(attr).count(val))
@@ -3469,7 +3661,14 @@ inline double CobwebNode::log_prob_instance(const AV_COUNT_TYPE &instance)
             // we use cnt here to weight accuracy by counts in the training
             // instance. Usually this is 1, but in  models, it might
             // be something else.
-            log_prob += cnt * (log(av_count) - log(a_count));
+            if (av_count == this->tree->alpha) 
+            {
+                log_prob += cnt * (this->tree->log_alpha - log(a_count));
+            }
+            else
+            {
+                log_prob += cnt * (log(av_count) - log(a_count));
+            }
         }
     }
 
@@ -3649,8 +3848,9 @@ PYBIND11_MODULE(cobweb, m)
         .def("predict_probs_parallel", &CobwebTree::predict_probs_mixture_parallel)
         .def("clear", &CobwebTree::clear)
         .def("__str__", &CobwebTree::__str__)
-        .def("dump_json", &CobwebTree::dump_json)
+        // .def("dump_json", &CobwebTree::dump_json)
         // .def("load_json", &CobwebTree::load_json)
         .def("load_json_stream", &CobwebTree::load_json_stream)
+        .def("write_json_stream", &CobwebTree::write_json_stream)
         .def_readonly("root", &CobwebTree::root, py::return_value_policy::reference);
 }
