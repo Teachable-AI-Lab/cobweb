@@ -5,7 +5,7 @@ __See ([cobweb/README.md](https://github.com/Teachable-AI-Lab/cobweb/blob/main/R
 ### Intergrated [Rapidjson](https://github.com/Tencent/rapidjson) for fast model loading `load_json_stream(json_path)`
 ### Intergrated [Rapidjson](https://github.com/Tencent/rapidjson) for fast model writing `write_json_stream(json_path)`
 ### Attribute types are now changed to `int` from `CachedString`
-Here is an default (arbitrary) key mapping:
+Here is the default (arbitrary) key mapping:
 `const std::unordered_map<std::string, int> ATTRIBUTE_MAP = {
     {"alpha", 1000000},
     {"weight_attr", 10000001},
