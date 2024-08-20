@@ -28,7 +28,3 @@ __You should also need to setup unique integer key for instance representation. 
 - `mode=2`: randomly select one of the four operations after identifying two best children
 - `mode=3`: using _insert_ (BEST) operation, and with a small probability, use `mode=0` to get current tree operation
 
-# Todos
-[] Support streamline json model saving
-[] Investigate high memory usage during inference
-
