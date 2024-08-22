@@ -136,11 +136,13 @@ double CobwebContinuousTree::compute_score(const Eigen::VectorXd& child_mean,
         const Eigen::VectorXd& child_var, const Eigen::VectorXd& parent_mean,
         const Eigen::VectorXd& parent_var){
 
-    // could add other code here to do different computations.
-    double score = 0.5 * (parent_var.array().log() - child_var.array().log()).sum();
-    // std::cout << "Parent logsum" << parent_var.array().log().sum() << std::endl;
-    // std::cout << "Child logsum" << child_var.array().log().sum() << std::endl;
-    // std::cout << "SCORE: " << score << std::endl;
+    // double score = 0.5 * (1 - (child_mean).cwiseProduct(parent_mean).array().sum() / (child_mean.norm() * parent_mean.norm()));
+
+    // Using linked covar based on parent
+    double score = 0.5 * (child_mean - parent_mean).cwiseProduct(child_mean - parent_mean).cwiseQuotient(parent_var).array().sum();
+
+    // Typical info CU (using own diag covar)
+    // double score = 0.5 * (parent_var.array().log() - child_var.array().log()).sum();
 
     return score;
 }

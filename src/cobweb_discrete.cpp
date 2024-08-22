@@ -1,5 +1,7 @@
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
+#include <nanobind/nanobind.h>
+#include <nanobind/stl/string.h>
+#include <nanobind/stl/unordered_map.h>
+#include <nanobind/stl/vector.h>
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -25,7 +27,7 @@
 #include "BS_thread_pool.hpp"
 #include "helper.h"
 
-namespace py = pybind11;
+namespace nb = nanobind;
 
 #define NULL_STRING CachedString("\0")
 #define BEST 0
@@ -3419,23 +3421,23 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-PYBIND11_MODULE(cobweb_discrete, m)
+NB_MODULE(cobweb_discrete, m)
 {
     m.doc() = "cobweb plug-in"; // optional module docstring
 
-    py::class_<CobwebNode>(m, "CobwebNode")
-        .def(py::init<>())
+    nb::class_<CobwebNode>(m, "CobwebNode")
+        .def(nb::init<>())
         .def("pretty_print", &CobwebNode::pretty_print)
         .def("output_json", &CobwebNode::output_json)
         .def("predict_probs", &CobwebNode::predict_probs)
         .def("predict_log_probs", &CobwebNode::predict_log_probs)
         .def("predict_weighted_probs", &CobwebNode::predict_weighted_probs)
         .def("predict_weighted_leaves_probs", &CobwebNode::predict_weighted_leaves_probs)
-        .def("predict", &CobwebNode::predict, py::arg("attr") = "",
-             py::arg("choiceFn") = "most likely",
-             py::arg("allowNone") = true)
-        .def("get_best_level", &CobwebNode::get_best_level, py::return_value_policy::reference)
-        .def("get_basic_level", &CobwebNode::get_basic_level, py::return_value_policy::reference)
+        .def("predict", &CobwebNode::predict, nb::arg("attr") = "",
+             nb::arg("choiceFn") = "most likely",
+             nb::arg("allowNone") = true)
+        .def("get_best_level", &CobwebNode::get_best_level, nb::rv_policy::reference)
+        .def("get_basic_level", &CobwebNode::get_basic_level, nb::rv_policy::reference)
         .def("log_prob_class_given_instance", &CobwebNode::log_prob_class_given_instance_ext)
         .def("log_prob_instance", &CobwebNode::log_prob_instance_ext)
         .def("log_prob_instance_missing", &CobwebNode::log_prob_instance_missing_ext)
@@ -3446,33 +3448,33 @@ PYBIND11_MODULE(cobweb_discrete, m)
         .def("partition_utility", &CobwebNode::partition_utility)
         .def("__str__", &CobwebNode::__str__)
         .def("concept_hash", &CobwebNode::concept_hash)
-        .def_readonly("count", &CobwebNode::count)
-        .def_readonly("children", &CobwebNode::children, py::return_value_policy::reference)
-        .def_readonly("parent", &CobwebNode::parent, py::return_value_policy::reference)
-        .def_readonly("av_count", &CobwebNode::av_count, py::return_value_policy::reference)
-        .def_readonly("a_count", &CobwebNode::a_count, py::return_value_policy::reference)
-        .def_readonly("tree", &CobwebNode::tree, py::return_value_policy::reference);
+        .def_ro("count", &CobwebNode::count)
+        .def_ro("children", &CobwebNode::children, nb::rv_policy::reference)
+        .def_ro("parent", &CobwebNode::parent, nb::rv_policy::reference)
+        .def_ro("av_count", &CobwebNode::av_count, nb::rv_policy::reference)
+        .def_ro("a_count", &CobwebNode::a_count, nb::rv_policy::reference)
+        .def_ro("tree", &CobwebNode::tree, nb::rv_policy::reference);
 
-    py::class_<CobwebTree>(m, "CobwebTree")
-        .def(py::init<float, bool, int, bool, bool>(),
-             py::arg("alpha") = 1.0,
-             py::arg("weight_attr") = false,
-             py::arg("objective") = 0,
-             py::arg("children_norm") = true,
-             py::arg("norm_attributes") = false)
+    nb::class_<CobwebTree>(m, "CobwebTree")
+        .def(nb::init<float, bool, int, bool, bool>(),
+             nb::arg("alpha") = 1.0,
+             nb::arg("weight_attr") = false,
+             nb::arg("objective") = 0,
+             nb::arg("children_norm") = true,
+             nb::arg("norm_attributes") = false)
         .def("ifit", &CobwebTree::ifit,
-             py::arg("instance") = std::vector<AV_COUNT_TYPE>(),
-             py::arg("mode"),
-             py::return_value_policy::reference)
+             nb::arg("instance") = std::vector<AV_COUNT_TYPE>(),
+             nb::arg("mode"),
+             nb::rv_policy::reference)
         .def("fit", &CobwebTree::fit,
-             py::arg("instances") = std::vector<AV_COUNT_TYPE>(),
-             py::arg("mode"),
-             py::arg("iterations") = 1,
-             py::arg("randomizeFirst") = true)
+             nb::arg("instances") = std::vector<AV_COUNT_TYPE>(),
+             nb::arg("mode"),
+             nb::arg("iterations") = 1,
+             nb::arg("randomizeFirst") = true)
         .def("categorize", &CobwebTree::categorize,
-             py::arg("instance") = std::vector<AV_COUNT_TYPE>(),
-             // py::arg("get_best_concept") = false,
-             py::return_value_policy::reference)
+             nb::arg("instance") = std::vector<AV_COUNT_TYPE>(),
+             // nb::arg("get_best_concept") = false,
+             nb::rv_policy::reference)
         .def("predict_probs", &CobwebTree::predict_probs_mixture)
         .def("predict_probs_parallel", &CobwebTree::predict_probs_mixture_parallel)
         .def("clear", &CobwebTree::clear)
@@ -3480,5 +3482,5 @@ PYBIND11_MODULE(cobweb_discrete, m)
         .def("dump_json", &CobwebTree::dump_json)
         // .def("load_json", &CobwebTree::load_json)
         .def("load_json_stream", &CobwebTree::load_json_stream)
-        .def_readonly("root", &CobwebTree::root, py::return_value_policy::reference);
+        .def_ro("root", &CobwebTree::root, nb::rv_policy::reference);
 }
