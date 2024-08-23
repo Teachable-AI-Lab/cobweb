@@ -92,6 +92,18 @@ double logsumexp(std::vector<double> arr)
     }
 }
 
+double eff_logsumexp(double n1, double n2)
+{
+    if (n1 == n2) {
+        return n1 + log(2.0);
+    }
+
+    double max_val = std::max(n1, n2);
+    double min_val = std::min(n1, n2);
+
+    return log1p(exp(min_val - max_val)) + max_val;
+}
+
 double logsumexp(double n1, double n2)
 {
     double max_val = std::max(n1, n2);
