@@ -5,20 +5,20 @@ CobwebContinuousTree::CobwebContinuousTree(int size)
     : root(nullptr),
       size(size)
 {
-    this->prior_var = Eigen::VectorXd::Constant(size, 0.05854983152);
+    this->prior_var = Eigen::VectorXf::Constant(size, 0.05854983152);
     this->clear();
 }
 
 
-CobwebContinuousNode* CobwebContinuousTree::ifit(Eigen::VectorXd instance){
+CobwebContinuousNode* CobwebContinuousTree::ifit(const Eigen::VectorXf &instance){
     return this->ifit_helper(instance);
 }
 
-CobwebContinuousNode* CobwebContinuousTree::ifit_helper(const Eigen::VectorXd &instance){
+CobwebContinuousNode* CobwebContinuousTree::ifit_helper(const Eigen::VectorXf &instance){
     return this->cobweb(instance);
 }
 
-CobwebContinuousNode* CobwebContinuousTree::cobweb(const Eigen::VectorXd &instance){
+CobwebContinuousNode* CobwebContinuousTree::cobweb(const Eigen::VectorXf &instance){
 
     CobwebContinuousNode* current = this->root;
 
@@ -128,21 +128,21 @@ void CobwebContinuousTree::clear()
     this->root->tree = this;
 }
 
-Eigen::VectorXd CobwebContinuousTree::compute_var(const Eigen::VectorXd& sum_sq, const double count){
+Eigen::VectorXf CobwebContinuousTree::compute_var(const Eigen::VectorXf& sum_sq, const float count){
     return sum_sq / count + this->prior_var;
 }
 
-double CobwebContinuousTree::compute_score(const Eigen::VectorXd& child_mean,
-        const Eigen::VectorXd& child_var, const Eigen::VectorXd& parent_mean,
-        const Eigen::VectorXd& parent_var){
+float CobwebContinuousTree::compute_score(const Eigen::VectorXf& child_mean,
+        const Eigen::VectorXf& child_var, const Eigen::VectorXf& parent_mean,
+        const Eigen::VectorXf& parent_var){
 
-    // double score = 0.5 * (1 - (child_mean).cwiseProduct(parent_mean).array().sum() / (child_mean.norm() * parent_mean.norm()));
+    // float score = 0.5 * (1 - (child_mean).cwiseProduct(parent_mean).array().sum() / (child_mean.norm() * parent_mean.norm()));
 
     // Using linked covar based on parent
-    double score = 0.5 * (child_mean - parent_mean).cwiseProduct(child_mean - parent_mean).cwiseQuotient(parent_var).array().sum();
+    float score = 0.5 * (child_mean - parent_mean).cwiseProduct(child_mean - parent_mean).cwiseQuotient(parent_var).array().sum();
 
     // Typical info CU (using own diag covar)
-    // double score = 0.5 * (parent_var.array().log() - child_var.array().log()).sum();
+    // float score = 0.5 * (parent_var.array().log() - child_var.array().log()).sum();
 
     return score;
 }

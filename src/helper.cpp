@@ -5,7 +5,7 @@ std::mt19937_64 gen(rd());
 std::uniform_real_distribution<double> unif(0, 1);
 
 
-bool is_close_to_zero(const Eigen::VectorXd& vec, double epsilon) {
+bool is_close_to_zero(const Eigen::VectorXf& vec, float epsilon) {
     for (int i = 0; i < vec.size(); ++i) {
         if (std::abs(vec[i]) > epsilon) {
             return false; // If any value is greater than epsilon, return false

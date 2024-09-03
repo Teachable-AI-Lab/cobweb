@@ -17,30 +17,30 @@ public:
     CobwebContinuousNode *parent;
     std::vector<CobwebContinuousNode *> children;
 
-    double count;
-    Eigen::VectorXd mean;
-    Eigen::VectorXd sum_sq;
+    float count;
+    Eigen::VectorXf mean;
+    Eigen::VectorXf sum_sq;
 
     CobwebContinuousNode(int size);
     CobwebContinuousNode(CobwebContinuousNode *otherNode);
-    void increment_counts(const Eigen::VectorXd &instance);
+    void increment_counts(const Eigen::VectorXf &instance);
     void update_counts_from_node(CobwebContinuousNode *node);
-    bool is_exact_match(const Eigen::VectorXd &instance);
+    bool is_exact_match(const Eigen::VectorXf &instance);
     size_t _hash();
     std::string __str__();
 
-    std::tuple<Eigen::VectorXd, Eigen::VectorXd> mean_var();
-    std::tuple<Eigen::VectorXd, Eigen::VectorXd> mean_var_new(const Eigen::VectorXd &instance);
-    std::tuple<Eigen::VectorXd, Eigen::VectorXd> mean_var_insert(const Eigen::VectorXd &instance);
-    std::tuple<Eigen::VectorXd, Eigen::VectorXd> mean_var_merge(CobwebContinuousNode *other, const Eigen::VectorXd &instance);
+    std::tuple<Eigen::VectorXf, Eigen::VectorXf> mean_var();
+    std::tuple<Eigen::VectorXf, Eigen::VectorXf> mean_var_new(const Eigen::VectorXf &instance);
+    std::tuple<Eigen::VectorXf, Eigen::VectorXf> mean_var_insert(const Eigen::VectorXf &instance);
+    std::tuple<Eigen::VectorXf, Eigen::VectorXf> mean_var_merge(CobwebContinuousNode *other, const Eigen::VectorXf &instance);
 
-    double pu_for_insert(CobwebContinuousNode *child, const Eigen::VectorXd &instance);
-    double pu_for_new(const Eigen::VectorXd &instance);
-    double pu_for_merge(CobwebContinuousNode *best1, CobwebContinuousNode *best2, const Eigen::VectorXd &instance);
-    double pu_for_split(CobwebContinuousNode *best);
+    float pu_for_insert(CobwebContinuousNode *child, const Eigen::VectorXf &instance);
+    float pu_for_new(const Eigen::VectorXf &instance);
+    float pu_for_merge(CobwebContinuousNode *best1, CobwebContinuousNode *best2, const Eigen::VectorXf &instance);
+    float pu_for_split(CobwebContinuousNode *best);
 
-    std::tuple<double, int> get_best_operation(const Eigen::VectorXd &instance, CobwebContinuousNode *best1, CobwebContinuousNode *best2, double best1_pu);
-    std::tuple<double, CobwebContinuousNode *, CobwebContinuousNode *> two_best_children(const Eigen::VectorXd &instance);
+    std::tuple<float, int> get_best_operation(const Eigen::VectorXf &instance, CobwebContinuousNode *best1, CobwebContinuousNode *best2, float best1_pu);
+    std::tuple<float, CobwebContinuousNode *, CobwebContinuousNode *> two_best_children(const Eigen::VectorXf &instance);
 
     // std::string concept_hash();
     // std::string pretty_print(int depth = 0);

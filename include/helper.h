@@ -13,7 +13,7 @@
 #include <cmath>
 
 // check if a vectoris close to 0
-bool is_close_to_zero(const Eigen::VectorXd& vec, double epsilon);
+bool is_close_to_zero(const Eigen::VectorXf& vec, float epsilon);
 
 // Function to display a progress bar with elapsed and estimated time
 void displayProgressBar(int width, double progress_percentage, double seconds_elapsed);
