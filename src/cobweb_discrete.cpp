@@ -1,6 +1,7 @@
 #include <nanobind/nanobind.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/unordered_map.h>
+#include <nanobind/stl/tuple.h>
 #include <nanobind/stl/vector.h>
 #include <iostream>
 #include <sstream>
@@ -19,6 +20,11 @@
 #include "rapidjson/document.h"
 #include "rapidjson/reader.h"
 #include "rapidjson/filereadstream.h"
+#include "rapidjson/writer.h"
+#include "rapidjson/ostreamwrapper.h"
+#include "rapidjson/stringbuffer.h"
+#include <fstream>
+#include <string>
 #include <stack>
 
 #include "assert.h"
@@ -62,6 +68,8 @@ std::unordered_map<int, double> lgammaCache;
 std::unordered_map<int, std::unordered_map<int, int>> binomialCache;
 std::unordered_map<int, std::unordered_map<double, double>> entropy_k_cache;
 
+// do this so that we only store integers in the stack, not strings
+// won't have any impact on the tree
 const std::unordered_map<std::string, int> ATTRIBUTE_MAP = {
     {"alpha", 1000000},
     {"weight_attr", 10000001},
@@ -74,7 +82,6 @@ const std::unordered_map<std::string, int> ATTRIBUTE_MAP = {
     {"sum_n_logn", 100000013},
     {"av_count", 100000014},
     {"children", 100000015}};
-
 
 VALUE_TYPE most_likely_choice(std::vector<std::tuple<VALUE_TYPE, double>> choices)
 {
@@ -179,6 +186,7 @@ class CobwebTree
 
 public:
     float alpha;
+    float log_alpha;
     bool weight_attr;
     int objective;
     bool children_norm;
@@ -189,6 +197,7 @@ public:
     CobwebTree(float alpha, bool weight_attr, int objective, bool children_norm, bool norm_attributes)
     {
         this->alpha = alpha;
+        this->log_alpha = log(alpha);
         this->weight_attr = weight_attr;
         this->objective = objective;
         this->children_norm = children_norm;
@@ -376,15 +385,6 @@ public:
                 int key = std::stoi(std::string(str, length));
                 keyStack.push(key);
             }
-            // int key = std::stoi(std::string(str, length));
-            // keyStack.push(key);
-
-            // tree address
-            // std::cout << "\ntree address at key: " << cobwebTree << std::endl;
-            // print key
-            // std::cout << "key: " << key << std::endl;
-            // print stack length
-            // std::cout << "stack length: " << keyStack.size() << std::endl;
             return true;
         }
 
@@ -394,8 +394,6 @@ public:
             {
                 cobwebTree->weight_attr = b;
                 keyStack.pop();
-                // print here
-                // std::cout << "weight_attr: " << b << std::endl;
             }
             else if (keyStack.top() == ATTRIBUTE_MAP.at("children_norm"))
             {
@@ -419,8 +417,6 @@ public:
             }
             else if (keyStack.top() == ATTRIBUTE_MAP.at("weight_attr"))
             {
-                // print here
-                // std::cout << "weight_attr: " << i << std::endl;
                 cobwebTree->weight_attr = i;
                 keyStack.pop();
             }
@@ -454,64 +450,40 @@ public:
 
         bool Double(double d)
         {
-            // std::cout << "nodeStack length: " << nodeStack.size() << std::endl;
-            // std::cout << "keyStack length: " << keyStack.size() << std::endl;
-            // // check if the stack is empty
-            // // CobwebNode *currentNode = nodeStack.top();
-            // std::cout << "double currentNode top" << std::endl;
             int currentKey = keyStack.top();
-            // // CobwebNode *currentNode = nodeStack.top();
-            // std::cout << "double currentKey: " << std::endl;
-            // change it to vector of strings
-
             if (currentKey == ATTRIBUTE_MAP.at("alpha"))
             {
-                // std::cout << "nodeStack top at alpha: " << nodeStack.top() << std::endl;
                 std::cout << "alpha: " << d << std::endl;
                 std::cout << "currentKey: " << currentKey << std::endl;
                 cobwebTree->alpha = d;
                 keyStack.pop();
-                // std::cout << "alpha: " << d << std::endl;
             }
             else if (currentKey == ATTRIBUTE_MAP.at("count"))
             {
                 CobwebNode *currentNode = nodeStack.top();
-                // std::cout << "nodeStack top at count: " << nodeStack.top() << std::endl;
                 currentNode->count = d;
                 keyStack.pop();
-                // std::cout << "count: " << d << std::endl;
             }
             else if (pop_x(1) == ATTRIBUTE_MAP.at("a_count"))
             {
                 CobwebNode *currentNode = nodeStack.top();
-                // std::cout << "nodeStack top at a_count: " << nodeStack.top() << std::endl;
                 currentNode->a_count[currentKey] = d;
                 keyStack.pop();
             }
             else if (pop_x(1) == ATTRIBUTE_MAP.at("sum_n_logn"))
             {
                 CobwebNode *currentNode = nodeStack.top();
-                // std::cout << "nodeStack top at sum_n_logn: " << nodeStack.top() << std::endl;
-                // print here
-                // std::cout << "sum_n_logn, c: " << d << std::endl;
-                // output the keys of sum_n_logn
-                // std::cout << "sum_n_logn keys: " << currentNode->sum_n_logn.size() << std::endl;
-
                 currentNode->sum_n_logn[currentKey] = d;
-                // std::cout << "assigned sum_n_logn" << std::endl;
                 keyStack.pop();
             }
             else if (pop_x(2) == ATTRIBUTE_MAP.at("av_count"))
             {
                 CobwebNode *currentNode = nodeStack.top();
-                // std::cout << "nodeStack top at av_count: " << nodeStack.top() << std::endl;
                 currentNode->av_count[pop_x(1)][currentKey] = d;
                 keyStack.pop();
             }
             else
             {
-                // std::cout << "nodeStack top at other double: " << nodeStack.top() << std::endl;
-                // std::cout << "other double key: " << keyStack.top() << std::endl;
                 keyStack.pop();
             }
             return true;
@@ -519,20 +491,18 @@ public:
 
         bool StartObject()
         {
-            // std::cout << "start object" << std::endl;
             if (keyStack.empty())
             {
                 return true;
             }
             if (keyStack.top() == ATTRIBUTE_MAP.at("root"))
             {
-                // nodeStack.push(new CobwebNode());
                 CobwebNode *rootNode = new CobwebNode();
+                rootNode->tree = cobwebTree;
+                rootNode->parent = nullptr;
+
                 nodeStack.push(rootNode);
                 cobwebTree->root = rootNode;
-                // print out the length of the stack
-                // std::cout << "stack length at root start: " << nodeStack.size() << std::endl;
-                // std::cout << "root node address at root start: " << nodeStack.top() << std::endl;
             }
             else if (keyStack.top() == ATTRIBUTE_MAP.at("a_count") || keyStack.top() == ATTRIBUTE_MAP.at("sum_n_logn") || keyStack.top() == ATTRIBUTE_MAP.at("av_count"))
             {
@@ -540,16 +510,11 @@ public:
             }
             else if (keyStack.top() == ATTRIBUTE_MAP.at("children") && !nodeStack.empty())
             {
-                // added children
-                // std::cout << "added children" << std::endl;
                 CobwebNode *newNode = new CobwebNode();
-
-                // std::cout << "new node address: " << newNode << std::endl;
-                // std::cout << "parent node address: " << nodeStack.top() << std::endl;
+                newNode->tree = cobwebTree;
+                newNode->parent = nodeStack.top();
 
                 nodeStack.top()->children.push_back(newNode);
-                // std::cout << "children size: " << nodeStack.top()->children.size() << std::endl;
-
                 nodeStack.push(newNode);
             }
             return true;
@@ -557,60 +522,13 @@ public:
 
         bool EndObject(rapidjson::SizeType memberCount)
         {
-            // std::cout << "again, end object" << std::endl;
-
-            // std::cout << "tree address: " << cobwebTree << std::endl;
-            // if (cobwebTree->root == nullptr)
-            // {
-            //     std::cout << "root is null, for now" << std::endl;
-            // }
-            // else if (cobwebTree->root != nullptr)
-            // {
-            //     std::cout << "\nroot node address: " << cobwebTree->root << std::endl;
-            //     if (cobwebTree->root->children.size() > 0)
-            //     {
-            //         std::cout << "root children size: " << cobwebTree->root->children.size() << std::endl;
-            //         std::cout << "root children address: " << cobwebTree->root->children[0] << std::endl;
-            //     }
-            //     if (cobwebTree->root->av_count["c"].size() > 0)
-            //     {
-            //         std::cout << "root av_count at c size: " << cobwebTree->root->av_count["c"]["3809"] << std::endl;
-            //         // if (cobwebTree->root->av_count->_a != nullptr) {
-            //         //     std::cout << "root av_count _a address: " << cobwebTree->root->av_count->_a << std::endl;
-            //         // }
-            //     }
-            // }
-
             if (keyStack.empty() && nodeStack.empty())
             {
-                // std::cout << "The End" << std::endl;
                 return true;
             }
             else if (keyStack.top() == ATTRIBUTE_MAP.at("root"))
             {
-                // CobwebNode* completedNode = nodeStack.top();
                 nodeStack.pop();
-                // check if the stack is empty
-                // std::cout << "stack length at root end: " << nodeStack.size() << std::endl;
-
-                // call the member function dump_json in CobwebTree
-                // std::string cobwebTreeStr = cobwebTree->dump_json();
-                // std::cout << "cobwebTreeStr: " << cobwebTreeStr << std::endl;
-                // cobwebTree->root = completedNode;
-
-                // print out the length of the children array
-                // std::cout << "children array length: " << completedNode->children.size() << std::endl;
-                // // print out the length of av_count_c
-                // std::cout << "av_count_c length: " << completedNode->av_count.size() << std::endl;
-                // // print out the length of the stack
-                // std::cout << "node stack length: " << nodeStack.size() << std::endl;
-
-                // std::cout << "key stack length: " << keyStack.size() << std::endl;
-                // // newline
-                // std::cout << std::endl;
-
-                // else if (keyStack.top() == "a_count" || keyStack.top() == "sum_n_logn" || keyStack.top() == "av_count") {
-                //     return true;
             }
             else if (keyStack.top() == ATTRIBUTE_MAP.at("children") && !nodeStack.empty())
             {
@@ -624,7 +542,6 @@ public:
             else
             {
                 keyStack.pop();
-                // std::cout << "key stack length: " << keyStack.size() << std::endl;
             }
             return true;
         }
@@ -646,6 +563,84 @@ public:
         }
     };
 
+    void write_json_node(rapidjson::Writer<rapidjson::OStreamWrapper> &writer, CobwebNode *node)
+    {
+        writer.StartObject();
+        writer.Key("count");
+        writer.Double(node->count);
+
+        writer.Key("a_count");
+        writer.StartObject();
+        for (auto &[attr, count] : node->a_count)
+        {
+            writer.Key(std::to_string(attr).c_str());
+            writer.Double(count);
+        }
+        writer.EndObject();
+
+        writer.Key("sum_n_logn");
+        writer.StartObject();
+        for (auto &[attr, count] : node->sum_n_logn)
+        {
+            writer.Key(std::to_string(attr).c_str());
+            writer.Double(count);
+        }
+        writer.EndObject();
+
+        writer.Key("av_count");
+        writer.StartObject();
+        for (auto &[attr, val_map] : node->av_count)
+        {
+            writer.Key(std::to_string(attr).c_str());
+            writer.StartObject();
+            for (auto &[val, count] : val_map)
+            {
+                writer.Key(std::to_string(val).c_str());
+                writer.Double(count);
+            }
+            writer.EndObject();
+        }
+        writer.EndObject();
+
+        writer.Key("children");
+        writer.StartArray();
+        for (auto &child : node->children)
+        {
+            write_json_node(writer, child);
+        }
+        writer.EndArray();
+
+        writer.EndObject();
+    }
+
+    void write_json_stream(const std::string &save_path)
+    {
+        std::ofstream ofs(save_path, std::ios::binary);
+        rapidjson::OStreamWrapper osw(ofs);
+        rapidjson::Writer<rapidjson::OStreamWrapper> writer(osw);
+
+        writer.StartObject();
+        writer.Key("alpha");
+        writer.Double(this->alpha);
+
+        writer.Key("weight_attr");
+        writer.Uint(this->weight_attr);
+
+        writer.Key("objective");
+        writer.Uint(this->objective);
+
+        writer.Key("children_norm");
+        writer.Uint(this->children_norm);
+
+        writer.Key("norm_attributes");
+        writer.Uint(this->norm_attributes);
+
+        writer.Key("root");
+        write_json_node(writer, this->root);
+
+        writer.EndObject();
+    }
+
     void load_json_stream(std::string json_model_path)
     {
         FILE *fp = fopen(json_model_path.c_str(), "rb");
@@ -661,43 +656,20 @@ public:
         rapidjson::Reader reader;
         MyHandler handler(this);
 
-        // std::cout << "Tree init address: " << this << std::endl;
-
-        // // print if it is nullptr
-        // if (this == nullptr)
-        // {
-        //     std::cout << "Tree is nullptr" << std::endl;
-        // }
-        // else
-        // {
-        //     std::cout << this << std::endl;
-        // }
-
         if (!reader.Parse(is, handler))
         {
             std::cout << "Error while parsing JSON." << std::endl;
         }
 
-        // std::cout << "after parsing address: " << this << std::endl;
-
-        // std::string this_str = this->dump_json();
-        // std::cout << this_str << std::endl;
-
-        // if (this == nullptr)
-        // {
-        //     std::cout << "Tree, after is nullptr" << std::endl;
-        // }
-        // else
-        // {
-        //     std::cout << "Not a nullptr" << std::endl;
-
-        // }
-
-        // std::cout << "Loaded JSON from: " << json_model_path << std::endl;
+        for (auto &[attr, val_map] : this->root->av_count)
+        {
+            for (auto &[val, cnt] : val_map)
+            {
+                this->attr_vals[attr].insert(val);
+            }
+        }
 
         fclose(fp);
-
-        // std::cout << "after close address: " << this << std::endl;
     }
     // void load_json(std::string json)
     // {
@@ -980,35 +952,6 @@ public:
                 std::chrono::duration<double> elapsed_gbo = end_gbo - start_gbo;
                 GBO_time += elapsed_gbo.count();
                 GBO_count += 1;
-                // randomly choose the best action from
-                // #define BEST 0
-                // #define NEW 1
-                // #define MERGE 2
-                // #define SPLIT 3
-                // size_t bestAction = 0;
-                // // check if best1 is null
-                // if (best1 == nullptr) {
-                //     std::cout << "best1 is null" << std::endl;
-                //     // randomly choose between 0 and 1
-                //     bestAction = rand() % 2;
-                // }
-                // else {
-                //     if (best2 == nullptr) {
-                //         // randomly choose between 0,1,3
-                //         bestAction = rand() % 3;
-                //         if (bestAction == 2) {
-                //             bestAction = 3;
-                //         }
-                //     }
-                //     else {
-                //         // randomly choose between 0,1,2,3
-                //         bestAction = rand() % 4;
-                //     }
-                // }
-
-                // auto end2 = std::chrono::high_resolution_clock::now();
-                // std::chrono::duration<double> elapsed2 = end2 - start2;
-                // std::cout << "get_best_operation took " << elapsed2.count() << " seconds" << std::endl;
 
                 if (bestAction == BEST)
                 {
@@ -1211,6 +1154,14 @@ public:
     {
 
         std::unordered_map<int, std::unordered_map<int, double>> out;
+        // TODO: check the math here
+        for (auto &[attr, val_set] : this->attr_vals)
+        {
+            for (auto &val : val_set)
+            {
+                out[attr][val] = -INFINITY;
+            }
+        }
         std::unordered_map<int, std::unordered_map<int, std::vector<double>>> weighted_pred_probs;
 
         std::unordered_map<std::string, double> operation_stats;
@@ -1303,14 +1254,16 @@ public:
             {
                 for (auto &[val, log_p] : val_set)
                 {
-                    if (out.count(attr) && out.at(attr).count(val))
-                    {
-                        out[attr][val] = logsumexp(out[attr][val], curr_score + log_p);
-                    }
-                    else
-                    {
-                        out[attr][val] = curr_score + log_p;
-                    }
+                    // TODO: check the math here
+                    out[attr][val] = eff_logsumexp(out[attr][val], curr_score + log_p);
+                    // if (out.count(attr) && out.at(attr).count(val))
+                    // {
+                    //     out[attr][val] = logsumexp(out[attr][val], curr_score + log_p);
+                    // }
+                    // else
+                    // {
+                    //     out[attr][val] = curr_score + log_p;
+                    // }
                 }
             }
             auto end_lse_loop = std::chrono::high_resolution_clock::now();
@@ -1413,8 +1366,8 @@ public:
         pool.detach_sequence<unsigned int>(0, instances.size(),
                                            [this, &instances, &out, max_nodes, greedy, missing](const unsigned int i)
                                            {
-                                            //    out[i] = this->predict_probs_mixture(instances[i], max_nodes, greedy, missing);
-                                            // detuple the tuple
+                                               //    out[i] = this->predict_probs_mixture(instances[i], max_nodes, greedy, missing);
+                                               // detuple the tuple
                                                auto [operation_stats, probs] = this->predict_probs_mixture(instances[i], max_nodes, greedy, missing);
                                                out[i] = probs;
                                            });
@@ -1536,7 +1489,7 @@ inline void CobwebNode::update_counts_from_node(CobwebNode *node)
 
 inline double CobwebNode::entropy_attr_insert(ATTR_TYPE attr, const AV_COUNT_TYPE &instance)
 {
-    //if (attr.is_hidden())
+    // if (attr.is_hidden())
     if (attr < 0)
         return 0.0;
 
@@ -1601,7 +1554,7 @@ inline double CobwebNode::entropy_insert(const AV_COUNT_TYPE &instance)
 
     for (auto &[attr, av_inner] : this->av_count)
     {
-        //if (attr.is_hidden())
+        // if (attr.is_hidden())
         if (attr < 0)
             continue;
         info += this->entropy_attr_insert(attr, instance);
@@ -2995,10 +2948,16 @@ inline std::unordered_map<int, std::unordered_map<int, double>> CobwebNode::pred
         int num_vals = this->tree->attr_vals.at(attr).size();
         float alpha = this->tree->alpha;
         COUNT_TYPE attr_count = 0;
+        float second_term = 0;
 
         if (this->a_count.count(attr))
         {
             attr_count = this->a_count.at(attr);
+            second_term = log(attr_count + num_vals * alpha);
+        }
+        else
+        {
+            second_term = log(num_vals) + this->tree->log_alpha;
         }
 
         for (auto val : val_set)
@@ -3008,13 +2967,14 @@ inline std::unordered_map<int, std::unordered_map<int, double>> CobwebNode::pred
             if (this->av_count.count(attr) and this->av_count.at(attr).count(val))
             {
                 av_count = this->av_count.at(attr).at(val);
+                out[attr][val] = (log(av_count + alpha) - second_term);
             }
 
             // double p = ((av_count + alpha) / (attr_count + num_vals * alpha));
             // out[attr.get_string()][val.get_string()] += p;
             // std::cout << p << std::endl;
             // out[attr.get_string()][val.get_string()] = (log(av_count + alpha) - log(attr_count + num_vals * alpha));
-            out[attr][val] = (log(av_count + alpha) - log(attr_count + num_vals * alpha));
+            // out[attr][val] = (log(av_count + alpha) - log(attr_count + num_vals * alpha));
         }
     }
 
@@ -3466,21 +3426,26 @@ NB_MODULE(cobweb_discrete, m)
              nb::arg("instance") = std::vector<AV_COUNT_TYPE>(),
              nb::arg("mode"),
              nb::rv_policy::reference)
-        .def("fit", &CobwebTree::fit,
-             nb::arg("instances") = std::vector<AV_COUNT_TYPE>(),
-             nb::arg("mode"),
-             nb::arg("iterations") = 1,
-             nb::arg("randomizeFirst") = true)
-        .def("categorize", &CobwebTree::categorize,
-             nb::arg("instance") = std::vector<AV_COUNT_TYPE>(),
+        // // Bind 'ifit' with appropriate handling of the return type
+        // .def("ifit", [](CobwebTree &self, const std::unordered_map<int, std::unordered_map<int, double>> &instance, int mode)
+        //      {
+        //         auto result = self.ifit(instance, mode);
+        //         return nb::make_tuple(std::get<0>(result), std::get<1>(result)); 
+        //     }, 
+        //     nb::arg("instance") = std::unordered_map<int, std::unordered_map<int, double>>(), 
+        //     nb::arg("mode"), 
+        //     nb::rv_policy::reference)
+        .def("fit", &CobwebTree::fit, nb::arg("instances") = std::vector<AV_COUNT_TYPE>(), nb::arg("mode"), nb::arg("iterations") = 1, nb::arg("randomizeFirst") = true)
+        .def("categorize", &CobwebTree::categorize, nb::arg("instance") = std::vector<AV_COUNT_TYPE>(),
              // nb::arg("get_best_concept") = false,
              nb::rv_policy::reference)
         .def("predict_probs", &CobwebTree::predict_probs_mixture)
         .def("predict_probs_parallel", &CobwebTree::predict_probs_mixture_parallel)
         .def("clear", &CobwebTree::clear)
         .def("__str__", &CobwebTree::__str__)
-        .def("dump_json", &CobwebTree::dump_json)
+        // .def("dump_json", &CobwebTree::dump_json)
         // .def("load_json", &CobwebTree::load_json)
         .def("load_json_stream", &CobwebTree::load_json_stream)
+        .def("write_json_stream", &CobwebTree::write_json_stream)
         .def_ro("root", &CobwebTree::root, nb::rv_policy::reference);
 }

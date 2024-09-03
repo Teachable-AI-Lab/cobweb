@@ -33,4 +33,6 @@ double logsumexp(std::vector<double> arr);
 // Function to compute the log-sum-exp of two doubles
 double logsumexp(double n1, double n2);
 
+double eff_logsumexp(double n1, double n2);
+
 #endif // HELPER_H
