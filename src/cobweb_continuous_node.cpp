@@ -287,6 +287,19 @@ std::tuple<float, CobwebContinuousNode *, CobwebContinuousNode *> CobwebContinuo
 
 }
 
+float CobwebContinuousNode::log_prob_class_given_instance(const Eigen::VectorXf &instance){
+    return this->log_prob(instance) + log(this->count) - log(this->tree->root->count);
+}
+
+float CobwebContinuousNode::log_prob(const Eigen::VectorXf &instance){
+    // Linked var with parent
+    Eigen::ArrayXf var = (this->parent->sum_sq / this->parent->count + this->tree->prior_var).array();
+
+    // use nodes own var
+    // Eigen::ArrayXf var = (this->sum_sq / this->count + this->tree->prior_var).array();
+    return -0.5 * (var.log() + log(2.0f * M_PI) + ((instance - this->mean).array().square() / var)).sum();
+}
+
 std::tuple<Eigen::VectorXf, Eigen::VectorXf> CobwebContinuousNode::mean_var(){
     Eigen::VectorXf var = this->tree->compute_var(this->sum_sq, this->count);
     return std::make_tuple(this->mean, std::move(var));

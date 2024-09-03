@@ -4,6 +4,7 @@
 #include <Eigen/Dense>
 #include <vector>
 #include <tuple>
+#include <cmath>
 #include <iostream>
 #include "helper.h"
 
@@ -41,6 +42,9 @@ public:
 
     std::tuple<float, int> get_best_operation(const Eigen::VectorXf &instance, CobwebContinuousNode *best1, CobwebContinuousNode *best2, float best1_pu);
     std::tuple<float, CobwebContinuousNode *, CobwebContinuousNode *> two_best_children(const Eigen::VectorXf &instance);
+
+    float log_prob(const Eigen::VectorXf &instance);
+    float log_prob_class_given_instance(const Eigen::VectorXf &instance);
 
     // std::string concept_hash();
     // std::string pretty_print(int depth = 0);

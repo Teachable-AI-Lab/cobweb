@@ -136,6 +136,7 @@ float CobwebContinuousTree::compute_score(const Eigen::VectorXf& child_mean,
         const Eigen::VectorXf& child_var, const Eigen::VectorXf& parent_mean,
         const Eigen::VectorXf& parent_var){
 
+    // something like cosine angle?
     // float score = 0.5 * (1 - (child_mean).cwiseProduct(parent_mean).array().sum() / (child_mean.norm() * parent_mean.norm()));
 
     // Using linked covar based on parent
