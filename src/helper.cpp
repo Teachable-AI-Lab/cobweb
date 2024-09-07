@@ -92,6 +92,33 @@ double logsumexp(std::vector<double> arr)
     }
 }
 
+float logsumexp(std::vector<float> arr)
+{
+    if (arr.size() > 0)
+    {
+        float max_val = arr[0];
+        float sum = 0;
+
+        for (auto &v : arr)
+        {
+            if (v > max_val)
+            {
+                max_val = v;
+            }
+        }
+
+        for (auto &v : arr)
+        {
+            sum += exp(v - max_val);
+        }
+        return log(sum) + max_val;
+    }
+    else
+    {
+        return 0.0;
+    }
+}
+
 double eff_logsumexp(double n1, double n2)
 {
     if (n1 == n2) {
@@ -108,4 +135,22 @@ double logsumexp(double n1, double n2)
 {
     double max_val = std::max(n1, n2);
     return log(exp(n1 - max_val) + exp(n2 - max_val)) + max_val;
+}
+
+float logsumexp_f(float n1, float n2)
+{
+    float max_val = std::max(n1, n2);
+    return log(exp(n1 - max_val) + exp(n2 - max_val)) + max_val;
+}
+
+Eigen::VectorXf elementwise_logsumexp(const Eigen::VectorXf &v1, const Eigen::VectorXf &v2)
+{
+    Eigen::VectorXf max_vals = v1.array().max(v2.array());
+
+    std::cout << "max_vals: " << max_vals << std::endl;
+
+    Eigen::VectorXf temp = ((v1 - max_vals).array().exp() + (v2 - max_vals).array().exp()).log();
+    return temp + max_vals;
+
+    // return ((v1 - v1.cwiseMax(v2)).array().exp() + (v2 - v1.cwiseMax(v2)).array().exp()).array().log() + v1.cwiseMax(v2);
 }

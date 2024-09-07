@@ -30,8 +30,17 @@ std::string doubleToString(double cnt);
 // Function to compute the log-sum-exp of a vector of doubles
 double logsumexp(std::vector<double> arr);
 
+// Function to compute the log-sum-exp of a vector of floats
+float logsumexp(std::vector<float> arr);
+
 // Function to compute the log-sum-exp of two doubles
 double logsumexp(double n1, double n2);
+
+// logsumexp for floats
+float logsumexp_f(float n1, float n2);
+
+// logsumexp for floats
+Eigen::VectorXf elementwise_logsumexp(const Eigen::VectorXf &v1, const Eigen::VectorXf &v2);
 
 double eff_logsumexp(double n1, double n2);
 

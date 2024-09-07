@@ -31,8 +31,19 @@ NB_MODULE(cobweb_continuous, m)
                 nb::rv_policy::reference);
 
     nb::class_<CobwebContinuousTree>(m, "CobwebContinuousTree")
-        .def(nb::init<int>())
+        .def(nb::init<int, int, int>(),
+            nb::arg("size"),
+            nb::arg("covar_type") = 1,
+            nb::arg("covar_from") = 1)
         .def("ifit", &CobwebContinuousTree::ifit, nb::rv_policy::reference)
+        .def("predict", &CobwebContinuousTree::predict,
+            nb::arg("instance"),
+            nb::arg("max_nodes") = 1000,
+            nb::arg("greedy") = false)
+        .def("log_prob", &CobwebContinuousTree::log_prob,
+            nb::arg("instance"),
+            nb::arg("max_nodes") = 1000,
+            nb::arg("greedy") = false)
         // .def("fit", &CobwebTree::fit,
         //      nb::arg("instances") = std::vector<AV_COUNT_TYPE>(),
         //      nb::arg("mode"),

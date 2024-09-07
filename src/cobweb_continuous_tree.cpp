@@ -1,9 +1,11 @@
 #include "cobweb_continuous_node.h"
 #include "cobweb_continuous_tree.h"
 
-CobwebContinuousTree::CobwebContinuousTree(int size)
+CobwebContinuousTree::CobwebContinuousTree(int size, int covar_type, int covar_from)
     : root(nullptr),
-      size(size)
+      size(size),
+      covar_type(covar_type),
+      covar_from(covar_from)
 {
     this->prior_var = Eigen::VectorXf::Constant(size, 0.05854983152);
     this->clear();
@@ -116,6 +118,150 @@ CobwebContinuousNode* CobwebContinuousTree::cobweb(const Eigen::VectorXf &instan
     return current;
 }
 
+Eigen::VectorXf CobwebContinuousTree::predict(const Eigen::VectorXf &instance, int max_nodes, bool greedy){
+    // this wrapper is useful if we want to do anything before calling predict.
+    return this->predict_helper(instance, max_nodes, greedy);
+}
+
+Eigen::VectorXf CobwebContinuousTree::predict_helper(const Eigen::VectorXf &instance, int max_nodes, bool greedy){
+
+    float total_weight = 0.0;
+    Eigen::VectorXf out = Eigen::VectorXf::Zero(this->size);
+
+    int nodes_expanded = 0;
+
+    float root_ll_inst = this->root->log_prob(instance);
+
+    auto queue = std::priority_queue<std::tuple<float, float, CobwebContinuousNode *>>();
+
+    // std::cout << "root score: " << std::to_string(root_ll_inst) << std::endl;
+    queue.push(std::make_tuple(root_ll_inst, 0.0, this->root));
+
+    while (queue.size() > 0){
+        auto node = queue.top();
+        queue.pop();
+        nodes_expanded += 1;
+
+        if (greedy){
+            queue = std::priority_queue<
+                std::tuple<float, float, CobwebContinuousNode*>>();
+        }
+
+        float curr_score = std::get<0>(node);
+        float curr_ll = std::get<1>(node);
+        CobwebContinuousNode* curr = std::get<2>(node);
+
+        // total_weight += curr_score;
+        // std::cout << "weight = logsumexp(" << std::to_string(total_weight) << ", " << std::to_string(curr_score) << ")" << std::endl;
+        // std::cout << "weight += " << std::to_string(curr_score) << " (" << std::to_string(exp(curr_score)) << ")" << std::endl;
+
+        if (total_weight == 0){
+            total_weight = curr_score;
+        } else{
+            total_weight = logsumexp_f(total_weight, curr_score);
+        }
+
+        // auto curr_preds = curr->predict_probs();
+        auto curr_predicted_mean = curr->predict_mean(instance);
+
+        // std::cout << "curr_score: " << std::to_string(curr_score) << std::endl;
+        // std::cout << "total weight: " << std::to_string(total_weight) << std::endl;
+        // std::cout << "weight ratio: " << std::to_string(exp(curr_score - total_weight)) << std::endl;
+        // std::cout << "predicted mean: " << std::endl << curr_predicted_mean << std::endl << std::endl;
+
+        // Eigen::VectorXf delta = curr_predicted_mean - out;
+        // out += exp(curr_score - total_weight) * delta;
+        out += exp(curr_score - total_weight) * (curr_predicted_mean - out);
+        // std::cout << "out: " << std::endl << out << std::endl << std::endl;
+        // std::cout << std::endl;
+
+        if (nodes_expanded >= max_nodes) break;
+
+        // TODO look at missing in computing prob children given instance
+        //std::vector<double> children_probs = curr->prob_children_given_instance(instance);
+        std::vector<float> log_children_probs = curr->log_prob_children_given_instance(instance);
+
+        for (size_t i = 0; i < curr->children.size(); ++i) {
+            auto child = curr->children[i];
+            float child_ll_inst = child->log_prob(instance);
+            float child_ll_given_parent = log_children_probs[i];
+            float child_ll = child_ll_given_parent + curr_ll;
+
+            // std::cout << "ll_node: " << child_ll << ", ll_inst: " << child_ll_inst << std::endl;
+            queue.push(std::make_tuple(child_ll_inst + child_ll, child_ll, child));
+        }
+    }
+
+    return out;
+}
+
+float CobwebContinuousTree::log_prob(const Eigen::VectorXf &instance, int max_nodes, bool greedy){
+
+    float total_weight = 0.0;
+    float out = 0.0;
+    int nodes_expanded = 0;
+
+    float root_ll_inst = this->root->log_prob(instance);
+    auto queue = std::priority_queue<std::tuple<float, float, CobwebContinuousNode *>>();
+
+    // std::cout << "root score: " << std::to_string(root_ll_inst) << std::endl;
+    queue.push(std::make_tuple(root_ll_inst, 0.0, this->root));
+
+    while (queue.size() > 0){
+        auto node = queue.top();
+        queue.pop();
+        nodes_expanded += 1;
+
+        if (greedy){
+            queue = std::priority_queue<
+                std::tuple<float, float, CobwebContinuousNode*>>();
+        }
+
+        float curr_score = std::get<0>(node);
+        float curr_ll = std::get<1>(node);
+        CobwebContinuousNode* curr = std::get<2>(node);
+
+        if (total_weight == 0){
+            total_weight = curr_score;
+        } else{
+            total_weight = logsumexp_f(total_weight, curr_score);
+        }
+
+        // auto curr_preds = curr->predict_probs();
+        auto curr_predicted_log_prob = curr->log_prob(instance);
+
+        // std::cout << "curr_score: " << std::to_string(curr_score) << std::endl;
+        // std::cout << "total weight: " << std::to_string(total_weight) << std::endl;
+        // std::cout << "weight ratio: " << std::to_string(exp(curr_score - total_weight)) << std::endl;
+        // std::cout << "predicted mean: " << std::endl << curr_predicted_mean << std::endl << std::endl;
+
+        // Eigen::VectorXf delta = curr_predicted_mean - out;
+        // out += exp(curr_score - total_weight) * delta;
+        out += exp(curr_score - total_weight) * (curr_predicted_log_prob - out);
+        // std::cout << "out: " << std::endl << out << std::endl << std::endl;
+        // std::cout << std::endl;
+
+        if (nodes_expanded >= max_nodes) break;
+
+        // TODO look at missing in computing prob children given instance
+        //std::vector<double> children_probs = curr->prob_children_given_instance(instance);
+        std::vector<float> log_children_probs = curr->log_prob_children_given_instance(instance);
+
+        for (size_t i = 0; i < curr->children.size(); ++i) {
+            auto child = curr->children[i];
+            float child_ll_inst = child->log_prob(instance);
+            float child_ll_given_parent = log_children_probs[i];
+            float child_ll = child_ll_given_parent + curr_ll;
+
+            // std::cout << "ll_node: " << child_ll << ", ll_inst: " << child_ll_inst << std::endl;
+            queue.push(std::make_tuple(child_ll_inst + child_ll, child_ll, child));
+            // queue.push(std::make_tuple(child_ll_inst, child_ll, child));
+        }
+    }
+
+    return out;
+}
+
 std::string CobwebContinuousTree::__str__()
 {
     return this->root->__str__();
@@ -139,11 +285,17 @@ float CobwebContinuousTree::compute_score(const Eigen::VectorXf& child_mean,
     // something like cosine angle?
     // float score = 0.5 * (1 - (child_mean).cwiseProduct(parent_mean).array().sum() / (child_mean.norm() * parent_mean.norm()));
 
-    // Using linked covar based on parent
-    float score = 0.5 * (child_mean - parent_mean).cwiseProduct(child_mean - parent_mean).cwiseQuotient(parent_var).array().sum();
+    float score;
 
-    // Typical info CU (using own diag covar)
-    // float score = 0.5 * (parent_var.array().log() - child_var.array().log()).sum();
+    // use own covar
+    if (this->covar_from==1){
+        // Typical info CU (using own diag covar)
+        score = 0.5 * (parent_var.array().log() - child_var.array().log()).sum();
+    }
+    // use parent covar
+    else if (this->covar_from==2){
+        score = 0.5 * (child_mean - parent_mean).cwiseProduct(child_mean - parent_mean).cwiseQuotient(parent_var).array().sum();
+    }
 
     return score;
 }

@@ -46,6 +46,9 @@ public:
     float log_prob(const Eigen::VectorXf &instance);
     float log_prob_class_given_instance(const Eigen::VectorXf &instance);
 
+    std::vector<float> log_prob_children_given_instance(const Eigen::VectorXf &instance);
+    const Eigen::VectorXf& predict_mean(const Eigen::VectorXf &instance);
+
     // std::string concept_hash();
     // std::string pretty_print(int depth = 0);
     // int depth();

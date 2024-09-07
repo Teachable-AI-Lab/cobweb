@@ -291,13 +291,46 @@ float CobwebContinuousNode::log_prob_class_given_instance(const Eigen::VectorXf 
     return this->log_prob(instance) + log(this->count) - log(this->tree->root->count);
 }
 
+std::vector<float> CobwebContinuousNode::log_prob_children_given_instance(const Eigen::VectorXf &instance){
+    std::vector<float> raw_log_probs = std::vector<float>();
+    std::vector<float> norm_log_probs = std::vector<float>();
+
+    for (auto &child: this->children){
+        raw_log_probs.push_back(child->log_prob_class_given_instance(instance));
+    }
+
+    float log_p_of_x = logsumexp(raw_log_probs);
+
+    for (auto log_p: raw_log_probs){
+        norm_log_probs.push_back(log_p - log_p_of_x);
+    }
+
+    return norm_log_probs;
+}
+
 float CobwebContinuousNode::log_prob(const Eigen::VectorXf &instance){
     // Linked var with parent
-    Eigen::ArrayXf var = (this->parent->sum_sq / this->parent->count + this->tree->prior_var).array();
+    Eigen::ArrayXf var;
 
-    // use nodes own var
-    // Eigen::ArrayXf var = (this->sum_sq / this->count + this->tree->prior_var).array();
+    // use own covar
+    if (this->tree->covar_from==1){
+        var = (this->sum_sq / this->count + this->tree->prior_var).array();
+    }
+
+    // use parent's covar
+    else if (this->tree->covar_from==2){
+        if (this->parent){
+            var = (this->parent->sum_sq / this->parent->count + this->tree->prior_var);
+        } else {
+            var = (this->sum_sq / this->count + this->tree->prior_var);
+        }
+    }
+
     return -0.5 * (var.log() + log(2.0f * M_PI) + ((instance - this->mean).array().square() / var)).sum();
+}
+
+const Eigen::VectorXf& CobwebContinuousNode::predict_mean(const Eigen::VectorXf &instance){
+    return this->mean;
 }
 
 std::tuple<Eigen::VectorXf, Eigen::VectorXf> CobwebContinuousNode::mean_var(){
