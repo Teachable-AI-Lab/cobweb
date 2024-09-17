@@ -62,6 +62,12 @@ namespace std {
 
 // functions for printing CachedString-related objects
 template <typename V>
+std::ostream& operator<<(std::ostream& os, const CachedString &s) {
+    os << s.get_string();
+    return os;
+}
+
+template <typename V>
 std::ostream& operator<<(std::ostream& os, const std::unordered_map<CachedString, V>& map) {
     os << "{";
     for (auto it = map.begin(); it != map.end(); ++it) {

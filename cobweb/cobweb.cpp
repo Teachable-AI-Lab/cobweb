@@ -28,6 +28,9 @@ namespace pybind11 {
 #else
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <pybind11/complex.h>
+#include <pybind11/functional.h>
+#include <pybind11/chrono.h>
 #endif
 
 namespace py = pybind11;
@@ -50,6 +53,7 @@ typedef std::pair<double, int> OPERATION_TYPE;
 
 class CobwebTree;
 class CobwebNode;
+double heuristic_fn(const int heuristic, const AV_COUNT_TYPE &instance, CobwebNode* curr);
 
 std::random_device rd;
 std::mt19937_64 gen(rd());
@@ -215,7 +219,6 @@ double logsumexp(double n1, double n2) {
     return log(exp(n1 - max_val) + exp(n2 - max_val)) + max_val;
 }
 
-
 class CobwebNode {
     public:
         CobwebTree *tree;
@@ -225,6 +228,7 @@ class CobwebNode {
         COUNT_TYPE count;
         ATTR_COUNT_TYPE a_count;
         ATTR_COUNT_TYPE sum_n_logn;
+        ATTR_COUNT_TYPE sum_square;
         AV_COUNT_TYPE av_count;
 
         CobwebNode();
@@ -275,11 +279,15 @@ class CobwebNode {
         bool is_parent(CobwebNode *otherConcept);
         int num_concepts();
         std::string avcounts_to_json();
+        std::string avcounts_to_json_w_heuristics(AV_COUNT_TYPE &instance, int heuristic);
         std::string ser_avcounts();
         std::string a_count_to_json();
         std::string sum_n_logn_to_json();
+        std::string sum_square_to_json();
         std::string dump_json();
         std::string output_json();
+        std::string output_json_w_heuristics(AV_COUNT_TYPE &instance, int heuristic);
+        std::string output_json_w_heuristics_ext(INSTANCE_TYPE instance, int heuristic);
         std::vector<std::tuple<VALUE_TYPE, double>>
             get_weighted_values(ATTR_TYPE attr, bool allowNone = true);
         std::unordered_map<std::string, std::unordered_map<std::string, double>> predict_probs();
@@ -315,6 +323,10 @@ class CobwebTree {
             this->root = new CobwebNode();
             this->root->tree = this;
             this->attr_vals = AV_KEY_TYPE();
+        }
+        
+        void set_seed(int seed) {
+            gen.seed(seed);
         }
 
         std::string __str__(){
@@ -365,9 +377,23 @@ class CobwebTree {
                 new_node->sum_n_logn[attr_name] = count_value;
                 sum_n_logn_cursor = sum_n_logn_cursor->next;
             }
+            
+            // Get sum_square
+            struct json_object_element_s* sum_square_obj = sum_n_logn_obj->next;
+            struct json_object_s* sum_square_dict = json_value_as_object(sum_square_obj->value);
+            struct json_object_element_s* sum_square_cursor = sum_square_dict->start;
+            while(sum_square_cursor != NULL) {
+                // Get attr name
+                std::string attr_name = std::string(sum_square_cursor->name->string);
+
+                // A count is stored with each attribute
+                double count_value = atof(json_value_as_number(sum_square_cursor->value)->number);
+                new_node->sum_square[attr_name] = count_value;
+                sum_square_cursor = sum_square_cursor->next;
+            }
 
             // Get av counts
-            struct json_object_element_s* av_count_obj = sum_n_logn_obj->next;
+            struct json_object_element_s* av_count_obj = sum_square_obj->next;
             struct json_object_s* av_count_dict = json_value_as_object(av_count_obj->value);
             struct json_object_element_s* av_count_cursor = av_count_dict->start;
             while(av_count_cursor != NULL) {
@@ -798,45 +824,29 @@ class CobwebTree {
             std::unordered_map< std::string, std::unordered_map<std::string, double> >
             ,
             std::list< std::tuple<std::string, double> > 
-        > obtain_representation_helper(const AV_COUNT_TYPE &instance, double ll_path, int max_nodes, bool greedy, bool missing){
-            
+        > obtain_description_helper(const AV_COUNT_TYPE &instance, double ll_path, int max_nodes, int heuristic){
             std::unordered_map<std::string, std::unordered_map<std::string, double>> out;
             int nodes_expanded = 0;
             double total_weight = 0;
             bool first_weight = true;
-            
-            double root_ll_inst = 0;
-            if (missing){
-                root_ll_inst = this->root->log_prob_instance_missing(instance);
-            }
-            else {
-                root_ll_inst = this->root->log_prob_instance(instance);
-            }
-
             auto queue = std::priority_queue<
                 std::tuple<double, double, CobwebNode*> >();
-            auto repr = std::list<
+            auto description = std::list<
                 std::tuple<std::string, double>>();
 
+            // ############ ONLY DIFFERENCE FROM predict_probs_mixture_helper ############
+            double root_ll_inst = heuristic_fn(heuristic, instance, this->root);
             queue.push(std::make_tuple(root_ll_inst, 0.0, this->root));
+            // ############ ONLY DIFFERENCE FROM predict_probs_mixture_helper ############
             
             while (queue.size() > 0){
                 auto node = queue.top();
                 queue.pop();
                 nodes_expanded += 1;
 
-                if (greedy){
-                    queue = std::priority_queue<
-                        std::tuple<double, double, CobwebNode*>>();
-                }
-
                 auto curr_score = std::get<0>(node);
                 auto curr_ll = std::get<1>(node);
                 auto curr = std::get<2>(node);
-                
-                // ############ ONLY DIFFERENCE FROM predict_probs_mixture_helper ############
-                repr.push_back(std::make_tuple(curr->concept_hash(), exp(curr_score)));
-                // ############ ONLY DIFFERENCE FROM predict_probs_mixture_helper ############
 
                 if (first_weight){
                     total_weight = curr_score;
@@ -855,21 +865,24 @@ class CobwebTree {
                         }
                     }
                 }
+                
+                // ############ ONLY DIFFERENCE FROM predict_probs_mixture_helper ############
+                if (heuristic <= 1) curr_score = exp(curr_score);
+                description.push_back(std::make_tuple(curr->concept_hash(), curr_score));
+                // ############ ONLY DIFFERENCE FROM predict_probs_mixture_helper ############
 
                 if (nodes_expanded >= max_nodes) break;
 
                 std::vector<double> log_children_probs = curr->log_prob_children_given_instance(instance);
                 for (size_t i = 0; i < curr->children.size(); ++i) {
                     auto child = curr->children[i];
-                    double child_ll_inst = 0;
-                    if (missing){
-                        child_ll_inst = child->log_prob_instance_missing(instance);
-                    } else {
-                        child_ll_inst = child->log_prob_instance(instance);
-                    }
                     auto child_ll_given_parent = log_children_probs[i];
                     auto child_ll = child_ll_given_parent + curr_ll;
-                    queue.push(std::make_tuple(child_ll_inst + child_ll, child_ll, child));
+                    
+                    // ############ ONLY DIFFERENCE FROM predict_probs_mixture_helper ############
+                    double child_ll_inst = heuristic_fn(heuristic, instance, child);
+                    queue.push(std::make_tuple(child_ll_inst + child_ll * (heuristic == 0 ? 1 : 0), child_ll, child));
+                    // ############ ONLY DIFFERENCE FROM predict_probs_mixture_helper ############
                 }
             }
             
@@ -879,36 +892,45 @@ class CobwebTree {
                 }
             }
             
-            return std::make_tuple(out, repr);
+            return std::make_tuple(out, description);
         }
 
         /**
-         * Return nodes found in multi-node prediction as a representation of the instance.
+         * Return nodes found in multi-node prediction with their corresponding weight (calculated via heuristics) as a description of the instance under such representation system. Best-first search is guided by maximizing the heuristic.
          *
          * @param instance The instance to be represented.
          * @param max_nodes The maximum number of nodes to be searched.
-         * @param greedy Whether to use a greedy search.
-         * @param missing @TODO
+         * @param heuristic An integer indicating which heuristic to use. Distance d will be converted to similarity via exp(-d).
+         * - 0: (Default) Use collocation score (log_prob_instance + log_prob_class_given_instance) as the heuristic.
+         * - 1: (log_prob_instance) Use the probability of the instance given the node concept, ignoring the multinomial (permutation) coefficient.
+         * - 2: KL divergence
+         * - 3: JS divergence (Too expensive. Not implemented.)
+         * - 4: Total variation distance
+         * - 5: Hellinger distance
+         * - 6: Bhattacharyya distance
+         * - 7: Cosine similarity (Too expensive. Not implemented.)
+         * - 8: Mean squared error (Too expensive. Not implemented.)
          * @return What will be returned in predict_probs_mixture, as well as a list< tuple< CobwebNode node id, its **raw** collocation score without normalization> >
          */
         std::tuple<
             std::unordered_map< std::string, std::unordered_map<std::string, double> >
             ,
             std::list< std::tuple<std::string, double> > 
-        > obtain_representation_mixture(INSTANCE_TYPE instance, int max_nodes, bool greedy, bool missing){
+        > obtain_description(INSTANCE_TYPE instance, int max_nodes, int heuristic = 0){
             AV_COUNT_TYPE cached_instance;
             for (auto &[attr, val_map]: instance) {
                 for (auto &[val, cnt]: val_map) {
                     cached_instance[CachedString(attr)][CachedString(val)] = instance.at(attr).at(val);
                 }
             }
-            return this->obtain_representation_helper(cached_instance, 0.0, max_nodes, greedy, missing);
+            return this->obtain_description_helper(cached_instance, 0.0, max_nodes, heuristic);
         }
 };
 
 inline CobwebNode::CobwebNode() {
     count = 0;
     sum_n_logn = ATTR_COUNT_TYPE();
+    sum_square = ATTR_COUNT_TYPE();
     a_count = ATTR_COUNT_TYPE();
     parent = nullptr;
     tree = nullptr;
@@ -917,6 +939,7 @@ inline CobwebNode::CobwebNode() {
 inline CobwebNode::CobwebNode(CobwebNode *otherNode) {
     count = 0;
     sum_n_logn = ATTR_COUNT_TYPE();
+    sum_square = ATTR_COUNT_TYPE();
     a_count = ATTR_COUNT_TYPE();
 
     parent = otherNode->parent;
@@ -940,6 +963,7 @@ inline void CobwebNode::increment_counts(const AV_COUNT_TYPE &instance) {
                 if(this->av_count.count(attr) && this->av_count.at(attr).count(val)){
                     double tf = this->av_count.at(attr).at(val) + this->tree->alpha;
                     this->sum_n_logn[attr] -= tf * log(tf);
+                    this->sum_square[attr] -= tf * tf;
                 }
             }
 
@@ -948,6 +972,7 @@ inline void CobwebNode::increment_counts(const AV_COUNT_TYPE &instance) {
             if (!attr.is_hidden()){
                 double tf = this->av_count.at(attr).at(val) + this->tree->alpha;
                 this->sum_n_logn[attr] += tf * log(tf);
+                this->sum_square[attr] += tf * tf;
                 // std::cout << "av_count for [" << attr.get_string() << "] = [" << val.get_string() << "]: " << this->av_count[attr][val] << std::endl;
                 // std::cout << "updated sum nlogn for [" << attr.get_string() << "]: " << this->sum_n_logn[attr] << std::endl;
             }
@@ -966,6 +991,7 @@ inline void CobwebNode::update_counts_from_node(CobwebNode *node) {
                 if(this->av_count.count(attr) && this->av_count.at(attr).count(val)){
                     double tf = this->av_count.at(attr).at(val) + this->tree->alpha;
                     this->sum_n_logn[attr] -= tf * log(tf);
+                    this->sum_square[attr] -= tf * tf;
                 }
             }
 
@@ -974,6 +1000,7 @@ inline void CobwebNode::update_counts_from_node(CobwebNode *node) {
             if (!attr.is_hidden()){
                 double tf = this->av_count.at(attr).at(val) + this->tree->alpha;
                 this->sum_n_logn[attr] += tf * log(tf);
+                this->sum_square[attr] += tf * tf;
             }
         }
     }
@@ -1865,6 +1892,46 @@ inline int CobwebNode::num_concepts() {
     return 1 + childrenCount;
 }
 
+inline std::string CobwebNode::avcounts_to_json_w_heuristics(AV_COUNT_TYPE &instance, int heuristic) {
+    std::string ret = "{";
+
+    ret += "\"_category_utility\": {\n";
+    ret += "\"#ContinuousValue#\": {\n";
+    ret += "\"mean\": " + std::to_string(this->category_utility()) + ",\n";
+    ret += "\"std\": 1,\n";
+    ret += "\"n\": 1,\n";
+    ret += "}},\n";
+
+    ret += "\"_similarity\": {\n";
+    ret += "\"#ContinuousValue#\": {\n";
+    ret += "\"mean\": " + std::to_string( heuristic_fn(heuristic, instance, this) ) + ",\n";
+    ret += "\"std\": 1,\n";
+    ret += "\"n\": 1,\n";
+    ret += "}},\n";
+
+    int c = 0;
+    for (auto &[attr, vAttr]: av_count) {
+        ret += "\"" + attr.get_string() + "\": {";
+        int inner_count = 0;
+        for (auto &[val, cnt]: vAttr) {
+            ret += "\"" + val.get_string() + "\": " + doubleToString(cnt);
+            // std::to_string(cnt);
+            if (inner_count != int(vAttr.size()) - 1){
+                ret += ", ";
+            }
+            inner_count++;
+        }
+        ret += "}";
+
+        if (c != int(av_count.size())-1){
+            ret += ", ";
+        }
+        c++;
+    }
+    ret += "}";
+    return ret;
+}
+    
 inline std::string CobwebNode::avcounts_to_json() {
     std::string ret = "{";
 
@@ -1969,6 +2036,21 @@ inline std::string CobwebNode::sum_n_logn_to_json() {
     return ret;
 }
 
+inline std::string CobwebNode::sum_square_to_json() {
+    std::string ret = "{";
+    
+    bool first = true;
+    for (auto &[attr, cnt]: this->sum_square) {
+        if (!first) ret += ",\n";
+        else first = false;
+        ret += "\"" + attr.get_string() + "\": " + doubleToString(cnt);
+        // std::to_string(cnt);
+    }
+
+    ret += "}";
+    return ret;
+}
+
 inline std::string CobwebNode::dump_json() {
     std::string output = "{";
 
@@ -1976,6 +2058,7 @@ inline std::string CobwebNode::dump_json() {
     output += "\"count\": " + doubleToString(this->count) + ",\n";
     output += "\"a_count\": " + this->a_count_to_json() + ",\n";
     output += "\"sum_n_logn\": " + this->sum_n_logn_to_json() + ",\n";
+    output += "\"sum_square\": " + this->sum_square_to_json() + ",\n";
     output += "\"av_count\": " + this->ser_avcounts() + ",\n";
 
     output += "\"children\": [\n";
@@ -2012,6 +2095,38 @@ inline std::string CobwebNode::output_json(){
     output += "}\n";
 
     return output;
+}
+
+inline std::string CobwebNode::output_json_w_heuristics(AV_COUNT_TYPE &instance, int heuristic) {
+    std::string output = "{";
+
+    output += "\"name\": \"Concept" + std::to_string(this->_hash()) + "\",\n";
+    output += "\"size\": " + std::to_string(this->count) + ",\n";
+    output += "\"children\": [\n";
+    bool first = true;
+    for (auto &c: children) {
+        if(!first) output += ",";
+        else first = false;
+        output += c->output_json_w_heuristics(instance, heuristic);
+    }
+    output += "],\n";
+
+    output += "\"counts\": " + this->avcounts_to_json_w_heuristics(instance, heuristic) + ",\n";
+    output += "\"attr_counts\": " + this->a_count_to_json() + "\n";
+
+    output += "}\n";
+
+    return output;
+}
+
+inline std::string CobwebNode::output_json_w_heuristics_ext(INSTANCE_TYPE instance, int heuristic){
+    AV_COUNT_TYPE cached_instance;
+    for (auto &[attr, val_map]: instance) {
+        for (auto &[val, cnt]: val_map) {
+            cached_instance[CachedString(attr)][CachedString(val)] = instance.at(attr).at(val);
+        }
+    }
+    return this->output_json_w_heuristics(cached_instance, heuristic);
 }
 
 // TODO
@@ -2352,6 +2467,52 @@ inline double CobwebNode::log_prob_class_given_instance(const AV_COUNT_TYPE &ins
     return log_prob;
 }
 
+
+//inline double CobwebNode::tvd_of_instance(const AV_COUNT_TYPE &instance){
+//    /**
+//     * This is the total variation distance between the "instance" and the concept.
+//    */
+
+//    double distance = 0;
+
+//    for (auto &[attr, vAttr]: instance) {
+//        bool hidden = attr.is_hidden();
+//        if (hidden || !this->tree->attr_vals.count(attr)){
+//            continue;
+//        }
+
+//        double num_vals = this->tree->attr_vals.at(attr).size();
+
+//        for (auto &[val, cnt]: vAttr){
+//            if (!this->tree->attr_vals.at(attr).count(val)){
+//                continue;
+//            }
+
+//            double alpha = this->tree->alpha;
+//            double av_count = alpha;
+//            if (this->av_count.count(attr) && this->av_count.at(attr).count(val)){
+//                av_count += this->av_count.at(attr).at(val);
+//            }
+
+//            // a_count starts with the alphas over all values (even vals not in
+//            // current node)
+//            COUNT_TYPE a_count = num_vals * alpha;
+//            if (this->a_count.count(attr)){
+//                a_count += this->a_count.at(attr);
+//            }
+
+//            // we use cnt here to weight accuracy by counts in the training
+//            // instance. Usually this is 1, but in  models, it might
+//            // be something else.
+//            log_prob += cnt * (log(av_count) - log(a_count));
+
+//        }
+
+//    }
+
+//    return log_prob;
+//}
+
 inline double CobwebNode::log_prob_instance_ext(INSTANCE_TYPE instance){
     AV_COUNT_TYPE cached_instance;
     for (auto &[attr, val_map]: instance) {
@@ -2487,6 +2648,96 @@ inline double CobwebNode::log_prob_instance_missing(const AV_COUNT_TYPE &instanc
 
 
 
+double heuristic_fn(const int heuristic, const AV_COUNT_TYPE &instance, CobwebNode* curr){
+    double alpha = curr->tree->alpha;
+    switch (heuristic){
+        case 0: case 1:
+            return curr->log_prob_instance(instance);
+        case 2: // KL divergence
+        case 4: // Total variation distance
+        case 5: // Hellinger distance
+        case 6: // Bhattacharyya distance
+        {
+            double distance = 0.;
+            for (auto &[attr, vAttr]: instance) {
+                if (attr.is_hidden() || !curr->tree->attr_vals.count(attr)) continue;
+                
+                double num_vals = curr->tree->attr_vals.at(attr).size();
+                COUNT_TYPE P_a = num_vals * alpha;
+                for (auto &[val, proba]: vAttr) P_a += proba;
+                COUNT_TYPE Q_a = num_vals * alpha;
+                if (curr->a_count.count(attr)) Q_a += curr->a_count.at(attr);
+                if (heuristic == 4) distance += Q_a;
+                
+                double attr_distance = 0.;
+                for (auto &[val, proba]: vAttr) {
+                    COUNT_TYPE Q_av = alpha;
+                    if (curr->a_count.count(attr) && curr->av_count.at(attr).count(val)) 
+                        Q_av += curr->av_count.at(attr).at(val);
+                    COUNT_TYPE P_av = alpha + proba;
+                    if (heuristic == 2)
+                        distance += P_av / P_a * ((log(P_av) - log(P_a)) - (log(Q_av) - log(Q_a)));
+                    if (heuristic == 4){
+                        distance -= (Q_av / Q_a);
+                        distance += abs(P_av / P_a - Q_av / Q_a);
+                    }
+                    if (heuristic == 5 || heuristic == 6){
+                        attr_distance += sqrt(P_av / P_a * Q_av / Q_a);
+                    }
+                }
+                if (heuristic == 5) distance += sqrt(1 - attr_distance);
+                if (heuristic == 6) distance += -log(attr_distance);
+            }
+            if (heuristic == 4) distance /= 2;
+            return exp(-distance/2);
+        }
+        case 3: // JS divergence, too expensive to compute
+            return 0.0;
+        case 7: // Cosine similarity
+        {
+            double similarity = 1.;
+            for (auto &[attr, vAttr]: instance) {
+                if (attr.is_hidden() || !curr->tree->attr_vals.count(attr)) continue;
+                if (!curr->a_count.count(attr)) return 0.;
+                
+                double dot_product = 0., P_sum_square = 0., Q_sum_square = curr->sum_square.at(attr);
+                for (auto &[val, proba]: vAttr) {
+                    COUNT_TYPE P_av = proba;
+                    P_sum_square += P_av * P_av;
+                    
+                    if (curr->av_count.at(attr).count(val))
+                        dot_product += P_av * curr->av_count.at(attr).at(val);
+                }
+                assert (P_sum_square > 1e-10);
+                if (Q_sum_square < 1e-10) return 0.;
+                similarity *= dot_product / sqrt(P_sum_square) / sqrt(Q_sum_square);
+            }
+            return similarity;
+        }
+        case 8: // Mean squared error
+        {
+            double similarity = 1.;
+            for (auto &[attr, vAttr]: instance) {
+                if (attr.is_hidden() || !curr->tree->attr_vals.count(attr)) continue;
+                if (curr->a_count.count(attr) == 0) return 0.;
+                
+                double mse = curr->sum_square.at(attr);
+                for (auto &[val, proba]: vAttr) {
+                    COUNT_TYPE Q_av = 0;
+                    if (curr->a_count.count(attr) && curr->av_count.at(attr).count(val)) 
+                        Q_av = curr->av_count.at(attr).at(val);
+                        mse -= Q_av * Q_av;
+                    COUNT_TYPE P_av = proba;
+                    mse += (P_av - Q_av) * (P_av - Q_av);
+                }
+                similarity *= 1. / (1. + (mse / curr->tree->attr_vals.count(attr)));
+            }
+            return similarity;
+        }
+    }
+}
+
+
     int main(int argc, char* argv[]) {
         std::vector<AV_COUNT_TYPE> instances;
         std::vector<CobwebNode*> cs;
@@ -2518,6 +2769,7 @@ inline double CobwebNode::log_prob_instance_missing(const AV_COUNT_TYPE &instanc
             .def(py::init<>())
             .def("pretty_print", &CobwebNode::pretty_print)
             .def("output_json", &CobwebNode::output_json)
+            .def("output_json_w_heuristics", &CobwebNode::output_json_w_heuristics_ext)
             .def("predict_probs", &CobwebNode::predict_probs)
             .def("predict_log_probs", &CobwebNode::predict_log_probs)
             .def("predict_weighted_probs", &CobwebNode::predict_weighted_probs)
@@ -2562,13 +2814,14 @@ inline double CobwebNode::log_prob_instance_missing(const AV_COUNT_TYPE &instanc
                     py::arg("instance") = std::vector<AV_COUNT_TYPE>(),
                     // py::arg("get_best_concept") = false,
                     py::return_value_policy::reference)
-            .def("obtain_representation", &CobwebTree::obtain_representation_mixture)
+            .def("obtain_description", &CobwebTree::obtain_description)
             .def("predict_probs", &CobwebTree::predict_probs_mixture)
             .def("predict_probs_parallel", &CobwebTree::predict_probs_mixture_parallel)
             .def("clear", &CobwebTree::clear)
             .def("__str__", &CobwebTree::__str__)
             .def("dump_json", &CobwebTree::dump_json)
             .def("load_json", &CobwebTree::load_json)
+            .def("set_seed", &CobwebTree::set_seed)
             .def_readonly("root", &CobwebTree::root, py::return_value_policy::reference);
     }
 #endif

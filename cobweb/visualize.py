@@ -49,7 +49,7 @@ def _gen_viz(js_ob, dst, recreate_html):
         webbrowser.open('file://' + realpath(viz_file))
 
 
-def visualize(tree, dst=None, recreate_html=True):
+def visualize(tree, dst=None, recreate_html=True, instance=None, heuristic=5):
     """
     Create an interactive visualization of a concept_formation tree and open
     it in your browswer.
@@ -62,15 +62,19 @@ def visualize(tree, dst=None, recreate_html=True):
     :param tree: A category tree to visualize
     :param dst: A directory to generate visualization files into. If None no
         files will be generated
-    :param create_html: A flag for whether new supporting html files should be
+    :param recreate_html: A flag for whether new supporting html files should be
         created
     :type tree: :class:`CobwebTree <concept_formation.cobweb.CobwebTree>`,
         :class:`Cobweb3Tree <concept_formation.cobweb3.Cobweb3Tree>`, or
         :class:`TrestleTree <concept_formation.trestle.TrestleTree>`
     :type dst: str
-    :type create_html: bool
+    :type recreate_html: bool
     """
-    _gen_viz(tree.root.output_json(), dst, recreate_html)
+    _gen_viz(
+        tree.root.output_json() if instance is None else tree.root.output_json_w_heuristics(instance, heuristic), 
+        dst, 
+        recreate_html
+    )
 
 
 # begin Modification 
