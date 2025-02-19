@@ -36,6 +36,18 @@ void CobwebContinuousNode::increment_counts(const Eigen::VectorXf &instance)
     // std::cout << "SumSq sum: " << this->sum_sq.array().sum() << std::endl;
 }
 
+int CobwebContinuousNode::depth()
+{
+    if (this->parent == nullptr)
+    {
+        return 0;
+    }
+    else
+    {
+        return 1 + this->parent->depth();
+    }
+}
+
 void CobwebContinuousNode::update_counts_from_node(CobwebContinuousNode *other)
 {
     Eigen::VectorXf delta = other->mean - this->mean;
@@ -397,4 +409,86 @@ std::string CobwebContinuousNode::output_json()
     output += "}\n";
 
     return output;
+}
+
+nb::dict CobwebContinuousNode::to_map() {
+    nanobind::gil_scoped_acquire gil;
+    nb::dict node;
+    node["node_id"] = std::to_string(this->_hash());
+
+    nb::list mean_list;
+    for (int i = 0; i < this->mean.size(); ++i) {
+        mean_list.append(this->mean(i));
+    }
+    node["mean"] = mean_list;
+
+    nb::list sum_sq_list;
+    for (int i = 0; i < this->sum_sq.size(); ++i) {
+        // float value = (this->count > 0) ? (this->sum_sq(i) / this->count) : 0.0f;
+        sum_sq_list.append(this->sum_sq(i));
+    }
+    node["sum_sq"] = sum_sq_list;
+
+    node["count"] = this->count;
+
+    nb::list logvar_list;
+    const float epsilon = 1e-8f;
+    for (int i = 0; i < this->sum_sq.size(); ++i) {
+        float value = (this->count > 0) ? (this->sum_sq(i) / this->count) : 0.0f;
+        logvar_list.append(std::log(value + epsilon));
+    }
+    node["logvar"] = logvar_list;
+
+    nb::list children_list;
+    for (auto *child : this->children) {
+        children_list.append(child->to_map());
+    }
+    node["children"] = children_list;
+
+    return node;
+}
+
+
+std::string CobwebContinuousNode::export_tree_json() {
+    std::stringstream ss;
+    ss << "{";
+    ss << "\"node_id\": \"" << this->_hash() << "\",";
+    ss << "\"mean\": [";
+    for (int i = 0; i < this->mean.size(); i++) {
+        ss << this->mean(i);
+        if (i < this->mean.size() - 1)
+            ss << ", ";
+    }
+    ss << "],";
+    ss << "\"count\": " << this->count << ",";
+    ss << "\"sum_sq\": [";
+    for (int i = 0; i < this->sum_sq.size(); i++) {
+        ss << this->sum_sq(i);
+        if (i < this->sum_sq.size() - 1)
+            ss << ", ";
+    }
+    ss << "]";
+    if (!this->children.empty()) {
+        ss << ", \"children\": [";
+        for (size_t i = 0; i < this->children.size(); i++) {
+            ss << this->children[i]->export_tree_json();
+            if (i < this->children.size() - 1)
+                ss << ", ";
+        }
+        ss << "]";
+    }
+    ss << "}";
+    return ss.str();
+}
+#include <fstream>
+#include <iostream>
+
+void CobwebContinuousNode::save_tree_to_file(const std::string &filename) {
+    std::ofstream file(filename);
+    if (!file) {
+        std::cerr << "Could not open file: " << filename << std::endl;
+        return;
+    }
+    file << export_tree_json();
+    file.close();
 }

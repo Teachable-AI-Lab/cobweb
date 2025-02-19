@@ -19,16 +19,19 @@ public:
     int size;
     int covar_type;
     int covar_from;
+    int depth;
+    int branching_factor;
     Eigen::VectorXf prior_var;
     CobwebContinuousNode *root;
 
     // covar_type: 1=diag
     // covar_from: 1=self, 2=parent
-    CobwebContinuousTree(int size, int covar_type, int covar_from);
+    CobwebContinuousTree(int size, int covar_type, int covar_from, int depth, int branching_factor);
 
     CobwebContinuousNode* ifit(const Eigen::VectorXf &instance);
     CobwebContinuousNode* ifit_helper(const Eigen::VectorXf &instance);
     CobwebContinuousNode* cobweb(const Eigen::VectorXf &instance);
+    CobwebContinuousNode* get_leaf(const Eigen::VectorXf &instance, int depth);
     Eigen::VectorXf predict(const Eigen::VectorXf &instance, int max_nodes, bool greedy);
     Eigen::VectorXf predict_helper(const Eigen::VectorXf &instance, int max_nodes, bool greedy);
     float log_prob(const Eigen::VectorXf &instance, int max_nodes, bool greedy);

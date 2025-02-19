@@ -18,6 +18,8 @@ NB_MODULE(cobweb_continuous, m)
         .def("log_prob_class_given_instance", &CobwebContinuousNode::log_prob_class_given_instance)
         .def("__str__", &CobwebContinuousNode::__str__)
         .def("output_json", &CobwebContinuousNode::output_json)
+        .def("export_tree_json", &CobwebContinuousNode::export_tree_json)
+        .def("save_tree_to_file", &CobwebContinuousNode::save_tree_to_file)
         .def_ro("count", &CobwebContinuousNode::count)
         .def_ro("children", &CobwebContinuousNode::children,
                 nb::rv_policy::reference)
@@ -28,13 +30,16 @@ NB_MODULE(cobweb_continuous, m)
         .def_ro("sum_sq", &CobwebContinuousNode::sum_sq,
                 nb::rv_policy::reference)
         .def_ro("mean", &CobwebContinuousNode::mean,
-                nb::rv_policy::reference);
+                nb::rv_policy::reference)
+        .def("to_map", &CobwebContinuousNode::to_map);
 
     nb::class_<CobwebContinuousTree>(m, "CobwebContinuousTree")
-        .def(nb::init<int, int, int>(),
+        .def(nb::init<int, int, int, int, int>(),
             nb::arg("size"),
             nb::arg("covar_type") = 1,
-            nb::arg("covar_from") = 1)
+            nb::arg("covar_from") = 1,
+            nb::arg("depth") = 1,
+            nb::arg("branching_factor") = 2)
         .def("ifit", &CobwebContinuousTree::ifit, nb::rv_policy::reference)
         .def("predict", &CobwebContinuousTree::predict,
             nb::arg("instance"),
@@ -44,6 +49,10 @@ NB_MODULE(cobweb_continuous, m)
             nb::arg("instance"),
             nb::arg("max_nodes") = 1000,
             nb::arg("greedy") = false)
+        .def("get_leaf", &CobwebContinuousTree::get_leaf,
+            nb::arg("instance"),
+            nb::arg("depth") = 0,
+            nb::rv_policy::reference)
         // .def("fit", &CobwebTree::fit,
         //      nb::arg("instances") = std::vector<AV_COUNT_TYPE>(),
         //      nb::arg("mode"),

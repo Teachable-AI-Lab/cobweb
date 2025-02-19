@@ -7,6 +7,10 @@
 #include <cmath>
 #include <iostream>
 #include "helper.h"
+#include <nanobind/nanobind.h>
+
+namespace nb = nanobind;
+
 
 
 
@@ -25,6 +29,7 @@ public:
     CobwebContinuousNode(int size);
     CobwebContinuousNode(CobwebContinuousNode *otherNode);
     void increment_counts(const Eigen::VectorXf &instance);
+    int depth();
     void update_counts_from_node(CobwebContinuousNode *node);
     bool is_exact_match(const Eigen::VectorXf &instance);
     size_t _hash();
@@ -61,6 +66,9 @@ public:
     // std::string sum_n_logn_to_json();
     // std::string dump_json();
     std::string output_json();
+    nb::dict to_map();
+    std::string export_tree_json();
+    void save_tree_to_file(const std::string &filename);
 };
 
 #endif // COBWEB_CONTINUOUS_NODE_H

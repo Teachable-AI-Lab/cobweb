@@ -1,11 +1,13 @@
 #include "cobweb_continuous_node.h"
 #include "cobweb_continuous_tree.h"
 
-CobwebContinuousTree::CobwebContinuousTree(int size, int covar_type, int covar_from)
+CobwebContinuousTree::CobwebContinuousTree(int size, int covar_type, int covar_from, int depth, int branching_factor)
     : root(nullptr),
       size(size),
       covar_type(covar_type),
-      covar_from(covar_from)
+      covar_from(covar_from),
+      depth(depth),
+      branching_factor(branching_factor)
 {
     this->prior_var = Eigen::VectorXf::Constant(size, 0.05854983152);
     this->clear();
@@ -33,26 +35,35 @@ CobwebContinuousNode* CobwebContinuousTree::cobweb(const Eigen::VectorXf &instan
 
         } else if (current->children.empty()) {
             // std::cout << "fringe split" << std::endl;
-            CobwebContinuousNode* new_node = new CobwebContinuousNode(current);
-            current->parent = new_node;
-            new_node->children.push_back(current);
+            // ### fixed tree ### 
+            // # Before creating a new child for the current node, check the depth
+            if (current->depth() < this->depth) {
+                CobwebContinuousNode* new_node = new CobwebContinuousNode(current);
+                current->parent = new_node;
+                new_node->children.push_back(current);
 
-            if (new_node->parent == nullptr) {
-                root = new_node;
-            }
-            else{
-                new_node->parent->children.erase(remove(new_node->parent->children.begin(),
-                            new_node->parent->children.end(), current), new_node->parent->children.end());
-                new_node->parent->children.push_back(new_node);
-            }
-            new_node->increment_counts(instance);
+                if (new_node->parent == nullptr) {
+                    root = new_node;
+                }
+                else{
+                    new_node->parent->children.erase(remove(new_node->parent->children.begin(),
+                                new_node->parent->children.end(), current), new_node->parent->children.end());
+                    new_node->parent->children.push_back(new_node);
+                }
+                new_node->increment_counts(instance);
 
-            current = new CobwebContinuousNode(this->size);
-            current->parent = new_node;
-            current->tree = this;
-            current->increment_counts(instance);
-            new_node->children.push_back(current);
-            break;
+                current = new CobwebContinuousNode(this->size);
+                current->parent = new_node;
+                current->tree = this;
+                current->increment_counts(instance);
+                new_node->children.push_back(current);
+                break;
+                // ### fixed tree ###
+                // # if max_depth was reached, add the new instance to the current node
+            } else {
+                current->increment_counts(instance);
+                break;
+            }
 
         } else {
             auto[best1_mi, best1, best2] = current->two_best_children(instance);
@@ -65,16 +76,35 @@ CobwebContinuousNode* CobwebContinuousTree::cobweb(const Eigen::VectorXf &instan
 
             } else if (bestAction == NEW) {
                 // std::cout << "new" << std::endl;
-                current->increment_counts(instance);
+                // ### fixed tree ###
+                // # Before creating a new child for the current node, check if (number of children < max_width)
+                // std::cout << "children size: " << std::to_string(current->children.size()) << std::endl;
 
-                // current = current->create_new_child(instance);
-                CobwebContinuousNode *new_child = new CobwebContinuousNode(this->size);
-                new_child->parent = current;
-                new_child->tree = this;
-                new_child->increment_counts(instance);
-                current->children.push_back(new_child);
-                current = new_child;
-                break;
+                if (current->children.size() < this->branching_factor) {
+                    // print children size
+                    current->increment_counts(instance);
+
+                    // current = current->create_new_child(instance);
+                    CobwebContinuousNode *new_child = new CobwebContinuousNode(this->size);
+                    new_child->parent = current;
+                    new_child->tree = this;
+                    new_child->increment_counts(instance);
+                    current->children.push_back(new_child);
+                    current = new_child;
+                    break;
+                } else {
+                    // std::cout << "children size: " << std::to_string(current->children.size()) << std::endl;
+
+                    // # if max_width was reached, choose a child randomly and add the new instance there
+                    std::random_device rd;
+                    std::mt19937 gen(rd());
+                    std::uniform_int_distribution<> dis(0, current->children.size() - 1);
+                    int random_index = dis(gen);
+
+                    current = current->children[random_index];
+                    current->increment_counts(instance);
+                    break;
+                }
 
             } else if (bestAction == MERGE) {
                 // std::cout << "merge" << std::endl;
@@ -103,6 +133,8 @@ CobwebContinuousNode* CobwebContinuousTree::cobweb(const Eigen::VectorXf &instan
                 current->children.erase(remove(current->children.begin(),
                             current->children.end(), best1), current->children.end());
                 for (auto &c: best1->children) {
+                    // print children size
+                    // std::cout << "children size: " << std::to_string(current->children.size()) << std::endl;
                     c->parent = current;
                     c->tree = this;
                     current->children.push_back(c);
@@ -122,6 +154,29 @@ Eigen::VectorXf CobwebContinuousTree::predict(const Eigen::VectorXf &instance, i
     // this wrapper is useful if we want to do anything before calling predict.
     return this->predict_helper(instance, max_nodes, greedy);
 }
+
+CobwebContinuousNode* CobwebContinuousTree::get_leaf(const Eigen::VectorXf &instance, int depth){
+    CobwebContinuousNode* current = this->root;
+
+    while (true) {
+        if (current->children.empty() || current->is_exact_match(instance) || current->depth() == depth) {
+            return current;
+        } else {
+            auto parent = current;
+            current = nullptr;
+            double best_log_prob;
+
+            for (auto &child : parent->children) {
+                double log_prob = child->log_prob_class_given_instance(instance);
+                if (current == nullptr || log_prob > best_log_prob) {
+                    current = child;
+                    best_log_prob = log_prob;
+                }
+            }
+        }
+    }
+}
+
 
 Eigen::VectorXf CobwebContinuousTree::predict_helper(const Eigen::VectorXf &instance, int max_nodes, bool greedy){
 
