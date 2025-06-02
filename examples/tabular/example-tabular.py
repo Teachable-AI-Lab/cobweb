@@ -1,12 +1,10 @@
+import csv
+from random import seed, shuffle
+
+from tqdm import tqdm
+
 from cobweb.cobweb import CobwebTree
 from cobweb.visualize import visualize
-from random import shuffle, seed, sample
-import time
-import csv
-import numpy as np
-import pandas as pd
-from copy import copy, deepcopy
-from tqdm import tqdm
 
 """
 The example dataset is available at: 
@@ -31,11 +29,11 @@ verbose = True
 
 """ Data preprocessing. Table -> Instances (dictionaries) """
 instances = []
-with open("diagnose.csv", 'r') as fin:
+with open("/home/zwang910/Research/packages/cobweb/examples/tabular/diagnose.csv") as fin:
 	csv_reader = csv.reader(fin)
 	header = next(csv_reader)
 	for row in csv_reader:
-		instance = {'disease': {row[0].lower().replace(' ', '-'): 1}}
+		instance = {'Disease': {row[0].lower().replace(' ', '-'): 1}}
 		symptom_dict = {}
 		for i in range(1, len(row)):
 			if row[i] == '':
@@ -51,8 +49,8 @@ seed(random_seed)
 shuffle(instances)
 instances_tr = instances[:size_tr]
 instances_te = instances[size_tr:]
-diseases_te = [list(instance['disease'].keys())[0] for instance in instances_te]
-instances_te = [{k: v for k, v in instance.items() if k != 'disease'} for instance in instances_te]
+diseases_te = [list(instance['Disease'].keys())[0] for instance in instances_te]
+instances_te = [{k: v for k, v in instance.items() if k != 'Disease'} for instance in instances_te]
 
 # print(instances_tr[13])
 
@@ -82,7 +80,7 @@ for i in tqdm(range(len(instances_te))):
 	instance = instances_te[i]
 	probs_pred = tree.predict_probs(instance, 50, False, False)
 	# probs_pred = tree.categorize(instance).predict_probs()
-	disease_pred = sorted([(prob, disease) for (disease, prob) in probs_pred['disease'].items()], reverse=True)[0][1]
+	disease_pred = sorted([(prob, disease) for (disease, prob) in probs_pred['Disease'].items()], reverse=True)[0][1]
 	if disease_pred == diseases_te[i]:
 		n_correct += 1
 	# if i <= 20:
@@ -96,7 +94,7 @@ print(f"The test accuracy of Cobweb after training {size_tr} samples: {accuracy}
 
 
 # Predict the symptoms of a disease:
-instance_te_disease = {'disease': {'diabetes-': 1}}
+instance_te_disease = {'Disease': {'diabetes-': 1}}
 probs_pred = tree.categorize(instance_te_disease).get_basic_level().predict_probs()
 # probs_pred = tree.predict_probs(instance, 10, False, False)
 symptoms_pred = sorted([(prob, symptom) for (symptom, prob) in probs_pred['symptom'].items()], reverse=True)[:10]
@@ -104,7 +102,7 @@ print(symptoms_pred)
 
 instances_te_reverse = {'symptom': {'vomiting': 1, 'abdominal_pain': 1, 'loss_of_appetite': 1, 'fatigue': 1, 'yellowish_skin': 1, 'nausea': 1, 'high_fever': 1, 'dark_urine': 1}}
 probs_pred = tree.predict_probs(instance, 50, False, False)
-disease_pred = sorted([(prob, disease) for (disease, prob) in probs_pred['disease'].items()], reverse=True)[0][1]
+disease_pred = sorted([(prob, disease) for (disease, prob) in probs_pred['Disease'].items()], reverse=True)[0][1]
 print(disease_pred)
 
 

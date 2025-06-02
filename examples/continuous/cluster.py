@@ -1,6 +1,4 @@
-from math import log
 import copy
-
 
 """
 A partition/clustering is derived by generating the 'best' partition 

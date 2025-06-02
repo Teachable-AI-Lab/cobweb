@@ -1,18 +1,13 @@
-from __future__ import print_function
-from __future__ import unicode_literals
-from __future__ import absolute_import
-from __future__ import division
-from random import shuffle
-from random import seed
+from random import seed, shuffle
 
 import matplotlib.pyplot as plt
+from concept_formation.cluster import cluster
+from concept_formation.datasets import load_iris
 from sklearn.decomposition import PCA
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.metrics import adjusted_rand_score
 
 from cobweb.cobweb_torch import CobwebTorchTree
-from concept_formation.cluster import cluster
-from concept_formation.datasets import load_iris
 
 seed(0)
 irises = load_iris()
