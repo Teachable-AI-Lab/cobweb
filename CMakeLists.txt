@@ -60,9 +60,7 @@ target_include_directories(bs_thread_pool INTERFACE ${bshoshany_thread_pool_SOUR
 
 # Build Cobweb
 nanobind_add_module(cobweb_discrete src/cobweb_discrete.cpp src/helper.cpp)
-# target_include_directories(cobweb_discrete PRIVATE include/)
 target_include_directories(cobweb_discrete PRIVATE include/ ${RAPIDJSON_INCLUDE_DIR})
-# target_link_libraries(cobweb_discrete PRIVATE Eigen3::Eigen)
 target_link_libraries(cobweb_discrete PRIVATE Eigen3::Eigen bs_thread_pool)
 target_compile_features(cobweb_discrete PRIVATE cxx_std_17)
 install(TARGETS cobweb_discrete DESTINATION cobweb)
@@ -70,9 +68,7 @@ install(TARGETS cobweb_discrete DESTINATION cobweb)
 nanobind_add_module(
     cobweb_continuous src/cobweb_continuous.cpp src/cobweb_continuous_node.cpp
     src/cobweb_continuous_tree.cpp src/helper.cpp)
-# target_include_directories(cobweb_continuous PRIVATE include/)
 target_include_directories(cobweb_continuous PRIVATE include/ ${RAPIDJSON_INCLUDE_DIR})
-# target_link_libraries(cobweb_continuous PRIVATE Eigen3::Eigen)
 target_link_libraries(cobweb_continuous PRIVATE Eigen3::Eigen bs_thread_pool)
 target_compile_features(cobweb_continuous PRIVATE cxx_std_17)
 install(TARGETS cobweb_continuous DESTINATION cobweb)
