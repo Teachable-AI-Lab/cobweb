@@ -37,8 +37,6 @@ public:
     float log_prob(const Eigen::VectorXf &instance, int max_nodes, bool greedy);
 
     std::string __str__();
-    // std::string dump_json()
-    // std::string load_json()
     void clear();
 
     Eigen::VectorXf compute_var(const Eigen::VectorXf& meanSq, const float count);
