@@ -37,9 +37,9 @@ NB_MODULE(cobweb_continuous, m)
         .def(nb::init<int, int, int, int, int>(),
             nb::arg("size"),
             nb::arg("covar_type") = 1,
-            nb::arg("covar_from") = 1,
-            nb::arg("depth") = 1,
-            nb::arg("branching_factor") = 2)
+            nb::arg("covar_from") = 2,
+            nb::arg("depth") = 999999,
+            nb::arg("branching_factor") = 999999)
         .def("ifit", &CobwebContinuousTree::ifit, nb::rv_policy::reference)
         .def("predict", &CobwebContinuousTree::predict,
             nb::arg("instance"),

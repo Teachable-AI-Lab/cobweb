@@ -28,7 +28,6 @@
 #include <stack>
 
 #include "assert.h"
-#include "json.hpp"
 #include "cached_string.hpp"
 #include "BS_thread_pool.hpp"
 #include "helper.h"

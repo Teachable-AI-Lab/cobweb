@@ -150,11 +150,6 @@ CobwebContinuousNode* CobwebContinuousTree::cobweb(const Eigen::VectorXf &instan
     return current;
 }
 
-Eigen::VectorXf CobwebContinuousTree::predict(const Eigen::VectorXf &instance, int max_nodes, bool greedy){
-    // this wrapper is useful if we want to do anything before calling predict.
-    return this->predict_helper(instance, max_nodes, greedy);
-}
-
 CobwebContinuousNode* CobwebContinuousTree::get_leaf(const Eigen::VectorXf &instance, int depth){
     CobwebContinuousNode* current = this->root;
 
@@ -177,6 +172,10 @@ CobwebContinuousNode* CobwebContinuousTree::get_leaf(const Eigen::VectorXf &inst
     }
 }
 
+Eigen::VectorXf CobwebContinuousTree::predict(const Eigen::VectorXf &instance, int max_nodes, bool greedy){
+    // this wrapper is useful if we want to do anything before calling predict.
+    return this->predict_helper(instance, max_nodes, greedy);
+}
 
 Eigen::VectorXf CobwebContinuousTree::predict_helper(const Eigen::VectorXf &instance, int max_nodes, bool greedy){
 
