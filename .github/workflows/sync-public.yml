@@ -1,0 +1,28 @@
+name: Sync Public Branch
+
+on:
+  push:
+    branches:
+      - public
+
+jobs:
+  sync-to-public:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout public branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PUBLIC_REPO_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Push to public repo
+        run: |
+          git remote add public git@github.com:Teachable-AI-Lab/cobweb.git
+          git push --force public public:main
