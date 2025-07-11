@@ -4,6 +4,7 @@ import torch
 from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 from cobweb.cobweb_continuous import CobwebContinuousTree
 from cobweb.visualize import visualize
@@ -17,6 +18,27 @@ seed = 123  # random seed used for shuffling
 cuda = False  # We may just keep cuda=False since the training/predicting process will not be boosted with GPUs
 verbose = True
 random.seed(seed)
+
+
+def plot_mnist_image(tensor, title=None):
+    """
+    Plots a single MNIST image from a torch tensor.
+
+    Parameters:
+    - tensor (torch.Tensor): A 2D tensor of shape [28, 28] or
+                             a 3D tensor of shape [1, 28, 28] (unsqueezed channel).
+    - title (str, optional): Title for the plot.
+    """
+    if tensor.ndim == 3 and tensor.shape[0] == 1:
+        tensor = tensor.squeeze(0)
+    elif tensor.ndim != 2:
+        raise ValueError("Expected tensor shape [28,28] or [1,28,28], got {}".format(tensor.shape))
+
+    plt.imshow(tensor.numpy(), cmap='gray')
+    if title:
+        plt.title(title)
+    plt.axis('off')
+    plt.show()
 
 
 """ Load MNIST dataset and generate example training/test DataLoaders """
@@ -75,10 +97,16 @@ loader_te = get_data_loader(
 """ Initialize and Train Cobweb """
 imgs_tr, labels_tr = next(iter(loader_tr))
 # tree = CobwebTorchTree(imgs_tr.shape[1:])
-tree = CobwebContinuousTree(imgs_tr.shape[1:].numel())
+tree = CobwebContinuousTree(imgs_tr.shape[1:].numel(), covar_from=2)
 if verbose:
     print("Start Training.")  # noqa: T201
 for i in tqdm(range(imgs_tr.shape[0])):
+    imgs_tr[i, 0, 0, 0:10] = 0
+    imgs_tr[i, 0, 0, labels_tr[i]] = 1.0
+
+    # print(imgs_tr[i].flatten().numpy()[0:10])
+    # plot_mnist_image(imgs_tr[i])
+
     #  tree.ifit(imgs_tr[i], labels_tr[i].item())
     tree.ifit(imgs_tr[i].flatten().numpy())
 # Visualize Cobweb:
@@ -91,11 +119,13 @@ pred_labels = []
 if verbose:
     print("Start Predicting.")  # noqa: T201
 for i in tqdm(range(imgs_te.shape[0])):
+    imgs_te[i, 0, 0, 0:10] = 0.0
     # Make a prediction:
-    pred_probs = tree.predict_probs(imgs_te[i], None, max_nodes=50)
-    pred_label = torch.tensor(
-        sorted([(pred_probs[ele], ele) for ele in pred_probs], reverse=True)[0][1]
-    )
+    pred_probs = tree.predict(imgs_te[i].flatten().numpy(), max_nodes=200)
+    pred_label = pred_probs[0:10].argmax()
+    # pred_label = torch.tensor(
+    #     sorted([(pred_probs[ele], ele) for ele in pred_probs], reverse=True)[0][1]
+    # )
     pred_labels.append(pred_label)
 
 # Then you can return accuracy for the label predictions

@@ -480,8 +480,6 @@ std::string CobwebContinuousNode::export_tree_json() {
     ss << "}";
     return ss.str();
 }
-#include <fstream>
-#include <iostream>
 
 void CobwebContinuousNode::save_tree_to_file(const std::string &filename) {
     std::ofstream file(filename);
