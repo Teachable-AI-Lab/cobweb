@@ -22,3 +22,5 @@ Afterwards navigate to the project root directory and run `pip install .`
 # Todos
 [] Support streamline json model saving
 [] Investigate high memory usage during inference
+
+Test
